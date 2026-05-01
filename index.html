@@ -208,14 +208,13 @@
 </div>
 
 <script>
-const GIST_API    = 'https://api.github.com/gists/';
+const WORKER_URL  = 'https://attendance-proxy.je1-bd1-raghu.workers.dev';
 const GIST_RAW    = 'https://gist.githubusercontent.com/je1bd1raghu/';
 const CONFIG_FILE = 'config.json';
 const ATT_FILE    = 'attendance.json';
 
 // ── HARDCODED CONFIG (not user-editable) ──────────────────────────────────────
 const cfg = Object.freeze({
-  token:            atob('Z2hwX1NUMk9mMlh1bjdYTnFtOTJhQW5pQUl6Z2oyMnNweTE2eE1kUQ=='),
   configGistId:     atob('OTMyNjYwMTBiMjNmM2Y5ZmRjMjIzMGFjZDU2ZWJjOTI='),
   attendanceGistId: atob('NmIxYWE4ZjFmYjQ1NmQ5M2Y2MDNjNWFiNTQ5MzFiYzY=')
 });
@@ -292,13 +291,13 @@ async function gistRawGet(gistId, filename) {
   return r.json();
 }
 
-// Writes use authenticated API — token used only here
+// Writes go through the Cloudflare Worker — token stays server-side
 async function gistPatch(id, filename, content) {
   const body = { files: {} };
   body.files[filename] = { content: JSON.stringify(content, null, 2) };
-  const r = await fetch(GIST_API + id, {
+  const r = await fetch(WORKER_URL, {
     method: 'PATCH',
-    headers: { Authorization: 'token ' + cfg.token, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
   if (!r.ok) throw new Error('HTTP ' + r.status + ' saving to Gist');
@@ -339,7 +338,6 @@ function onEmployeeChange() {
   disableBtns();
   const id = document.getElementById('empSelect').value;
   if (!id) return;
-  if (!cfg.token) { showToast('System error: no token', 'warning'); return; }
   startWatch();
 }
 
