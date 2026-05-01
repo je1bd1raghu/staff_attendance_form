@@ -75,7 +75,8 @@
   .record-avatar { width: 44px; height: 44px; border-radius: 12px; background: var(--primary-light); color: var(--primary); font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .record-info { flex: 1; min-width: 0; }
   .record-name { font-size: 15px; font-weight: 700; color: var(--text); }
-  .record-loc  { font-size: 12px; color: var(--text3); font-weight: 600; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .record-desig{ font-size: 11px; color: var(--primary); font-weight: 700; margin-top: 1px; }
+  .record-loc  { font-size: 12px; color: var(--text3); font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .record-times { text-align: right; flex-shrink: 0; }
   .time-chip { display: block; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 6px; margin-bottom: 3px; white-space: nowrap; }
   .chip-in  { background: var(--success-light); color: var(--success); }
@@ -327,7 +328,8 @@ function populateEmployees() {
   sel.innerHTML = '<option value="">— Choose Your Name —</option>';
   employees.forEach(e => {
     const o = document.createElement('option');
-    o.value = e.id; o.textContent = e.name;
+    o.value = e.id;
+    o.textContent = e.name + (e.designation ? ' — ' + e.designation : '');
     sel.appendChild(o);
   });
 }
@@ -361,21 +363,37 @@ function onPosErr(e) {
 }
 
 function checkProximity() {
-  if (!locations.length) { setLoc('failed', '⚠️', 'No locations in config', 'Add locations to config Gist'); return; }
+  const emp = getEmp();
+  if (!emp) return;
+
+  // Filter to only this employee's assigned locations
+  const allowed = emp.locationIds && emp.locationIds.length
+    ? locations.filter(l => emp.locationIds.includes(l.id))
+    : locations;
+
+  if (!allowed.length) {
+    setLoc('failed', '⚠️', 'No locations assigned', 'Contact admin to assign your duty area');
+    disableBtns(); return;
+  }
+
+  // Find nearest allowed location
   let best = null, bestDist = Infinity;
-  locations.forEach(loc => {
+  allowed.forEach(loc => {
     const d = haversine(currentPos.lat, currentPos.lng, loc.lat, loc.lng);
     if (d < bestDist) { bestDist = d; best = loc; }
   });
-  const tol  = best.tolerance || 10;
+
+  const tol  = best.tolerance || 15;
   const dist = Math.round(bestDist);
+
   if (bestDist <= tol) {
     locVerified = true; locName = best.name;
     setLoc('verified', '✅', best.name, 'You are ' + dist + 'm away — location verified ✓');
     updateBtns();
   } else {
     locVerified = false;
-    setLoc('failed', '🚫', 'Outside allowed area', 'Nearest: ' + best.name + ' (' + dist + 'm away, need within ' + tol + 'm)');
+    const names = allowed.map(l => l.name).join(', ');
+    setLoc('failed', '🚫', 'Outside your duty area', 'Nearest: ' + best.name + ' (' + dist + 'm away, need within ' + tol + 'm). Allowed: ' + names);
     disableBtns();
   }
 }
@@ -421,7 +439,7 @@ async function doCheckIn() {
   if (!locVerified) { showToast('Location not verified', 'error'); return; }
   const emp = getEmp(); if (!emp) return;
   const now = new Date();
-  const rec = { employeeId: emp.id, name: emp.name, date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng };
+  const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '', date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng };
   await withBtnLoad('btnIn', async () => {
     await appendRecord(rec);
     todayRecs.push(rec);
@@ -475,10 +493,11 @@ function renderRecords() {
   if (!todayRecs.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>'; return; }
   const sorted = [...todayRecs].sort((a,b) => (a.checkInTimestamp||'').localeCompare(b.checkInTimestamp||''));
   el.innerHTML = sorted.map(r => {
-    const init = r.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
-    const inC  = r.checkIn  ? `<span class="time-chip chip-in">▲ ${r.checkIn}</span>` : '';
-    const outC = r.checkOut ? `<span class="time-chip chip-out">▼ ${r.checkOut}</span>` : (r.checkIn ? '<span class="time-chip chip-pending">⏳ Active</span>' : '');
-    return `<div class="record-item"><div class="record-avatar">${init}</div><div class="record-info"><div class="record-name">${r.name}</div><div class="record-loc">📍 ${r.location||'—'}</div></div><div class="record-times">${inC}${outC}</div></div>`;
+    const init  = r.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    const desig = r.designation ? `<div class="record-desig">🏷️ ${r.designation}</div>` : '';
+    const inC   = r.checkIn  ? `<span class="time-chip chip-in">▲ ${r.checkIn}</span>` : '';
+    const outC  = r.checkOut ? `<span class="time-chip chip-out">▼ ${r.checkOut}</span>` : (r.checkIn ? '<span class="time-chip chip-pending">⏳ Active</span>' : '');
+    return `<div class="record-item"><div class="record-avatar">${init}</div><div class="record-info"><div class="record-name">${r.name}</div>${desig}<div class="record-loc">📍 ${r.location||'—'}</div></div><div class="record-times">${inC}${outC}</div></div>`;
   }).join('');
 }
 
