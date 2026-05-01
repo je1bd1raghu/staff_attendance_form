@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Staff Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #F4F6FA;
+    --surface: #FFFFFF;
+    --surface2: #F0F4FF;
+    --primary: #2563EB;
+    --primary-dark: #1D4ED8;
+    --primary-light: #EFF6FF;
+    --success: #16A34A;
+    --success-light: #F0FDF4;
+    --danger: #DC2626;
+    --danger-light: #FEF2F2;
+    --warning: #D97706;
+    --warning-light: #FFFBEB;
+    --text: #1E293B;
+    --text2: #475569;
+    --text3: #94A3B8;
+    --border: #E2E8F0;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.07);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  }
+  body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .header { background: var(--primary); color: white; padding: 20px 20px 60px; text-align: center; position: relative; }
+  .header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+  .header p  { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+  .header-right { position: absolute; right: 16px; top: 20px; }
+  .icon-btn { background: rgba(255,255,255,0.2); border: none; border-radius: 10px; color: white; width: 38px; height: 38px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .card-wrapper { padding: 0 16px; margin-top: -40px; position: relative; z-index: 10; }
+  .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 24px; margin-bottom: 16px; }
+  .datetime-bar { display: flex; justify-content: space-between; align-items: center; background: var(--surface2); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 20px; }
+  .dt-block { text-align: center; }
+  .dt-label { font-size: 11px; color: var(--text3); font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+  .dt-val   { font-size: 16px; font-weight: 800; color: var(--text); margin-top: 2px; }
+  .dt-divider { width: 1px; height: 36px; background: var(--border); }
+  .field-label { font-size: 13px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
+  .select-wrapper { position: relative; margin-bottom: 20px; }
+  .select-wrapper::after { content: '▼'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text3); pointer-events: none; }
+  select { width: 100%; padding: 16px 44px 16px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 600; color: var(--text); background: white; appearance: none; cursor: pointer; transition: border-color 0.2s; }
+  select:focus { outline: none; border-color: var(--primary); }
+  .loc-status { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--radius-sm); margin-bottom: 20px; border: 2px solid transparent; transition: all 0.3s; }
+  .loc-status.checking { background: var(--warning-light); border-color: #FDE68A; }
+  .loc-status.verified { background: var(--success-light); border-color: #BBF7D0; }
+  .loc-status.failed   { background: var(--danger-light);  border-color: #FECACA; }
+  .loc-status.idle     { background: var(--surface2);       border-color: var(--border); }
+  .loc-icon  { font-size: 26px; flex-shrink: 0; }
+  .loc-title { font-size: 15px; font-weight: 700; }
+  .loc-sub   { font-size: 12px; font-weight: 600; margin-top: 2px; opacity: 0.75; }
+  .loc-status.checking .loc-title { color: var(--warning); }
+  .loc-status.verified .loc-title { color: var(--success); }
+  .loc-status.failed   .loc-title { color: var(--danger); }
+  .loc-status.idle     .loc-title { color: var(--text2); }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
+  .loc-status.checking .loc-icon { animation: pulse 1.2s ease-in-out infinite; }
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .btn-main { padding: 18px 10px; border: none; border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 17px; font-weight: 800; cursor: pointer; transition: transform 0.12s; letter-spacing: 0.2px; display: flex; flex-direction: column; align-items: center; gap: 4px; line-height: 1.2; }
+  .btn-main:active { transform: scale(0.97); }
+  .btn-main:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-icon { font-size: 24px; }
+  .btn-in  { background: var(--success); color: white; }
+  .btn-out { background: var(--danger);  color: white; }
+  .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text3); margin-bottom: 12px; }
+  .record-item { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .record-item:last-child { border-bottom: none; }
+  .record-avatar { width: 44px; height: 44px; border-radius: 12px; background: var(--primary-light); color: var(--primary); font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .record-info { flex: 1; min-width: 0; }
+  .record-name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .record-loc  { font-size: 12px; color: var(--text3); font-weight: 600; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .record-times { text-align: right; flex-shrink: 0; }
+  .time-chip { display: block; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 6px; margin-bottom: 3px; white-space: nowrap; }
+  .chip-in  { background: var(--success-light); color: var(--success); }
+  .chip-out { background: var(--danger-light);  color: var(--danger); }
+  .chip-pending { background: var(--warning-light); color: var(--warning); }
+  .empty-state { text-align: center; padding: 28px 0; color: var(--text3); font-weight: 700; font-size: 14px; }
+  .empty-state .e-icon { font-size: 36px; margin-bottom: 8px; }
+  .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--text); color: white; padding: 14px 24px; border-radius: 50px; font-size: 14px; font-weight: 700; z-index: 9999; transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1); white-space: nowrap; max-width: 88vw; text-align: center; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--success); }
+  .toast.error   { background: var(--danger); }
+  .toast.warning { background: var(--warning); }
+  .overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.6); z-index: 100; display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  .overlay.open { opacity: 1; pointer-events: all; }
+  .modal { background: white; border-radius: 24px 24px 0 0; padding: 28px 20px 44px; width: 100%; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.34,1.2,0.64,1); max-height: 90vh; overflow-y: auto; }
+  .overlay.open .modal { transform: translateY(0); }
+  .modal-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--border); margin: 0 auto 20px; }
+  .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+  .modal-sub   { font-size: 13px; color: var(--text2); margin-bottom: 24px; line-height: 1.6; }
+  .input-group { margin-bottom: 16px; }
+  .input-group label { display: block; font-size: 13px; font-weight: 700; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .input-group input { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 15px; color: var(--text); transition: border-color 0.2s; }
+  .input-group input:focus { outline: none; border-color: var(--primary); }
+  .input-group .hint { font-size: 11px; color: var(--text3); margin-top: 5px; line-height: 1.5; font-weight: 600; }
+  .btn-save { width: 100%; padding: 18px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 17px; font-weight: 800; cursor: pointer; margin-top: 8px; transition: background 0.2s; }
+  .btn-save:hover { background: var(--primary-dark); }
+  .btn-save:active { transform: scale(0.98); }
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+  .dot-ok   { background: var(--success); }
+  .dot-warn { background: var(--warning); }
+  .dot-err  { background: var(--danger); }
+  .config-bar { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 16px; box-shadow: var(--shadow); }
+  .cfg-text { font-size: 13px; font-weight: 700; color: var(--text2); }
+  .cfg-link { font-size: 12px; color: var(--primary); font-weight: 700; cursor: pointer; text-decoration: underline; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.35); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
+  .loading-screen { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; gap: 14px; transition: opacity 0.4s; }
+  .loading-screen.hide { opacity: 0; pointer-events: none; }
+  .loading-screen .l-icon { font-size: 52px; }
+  .loading-screen .l-text { font-size: 15px; font-weight: 700; color: var(--text2); }
+  .bar-track { width: 160px; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .bar-fill  { height: 100%; background: var(--primary); border-radius: 3px; width: 0%; transition: width 0.5s; }
+  pre { background: var(--surface2); border-radius: 10px; padding: 14px; font-size: 11px; overflow-x: auto; line-height: 1.7; color: var(--text); font-family: monospace; white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body>
+
+<!-- LOADING SCREEN -->
+<div class="loading-screen" id="loadingScreen">
+  <div class="l-icon">📋</div>
+  <div class="l-text" id="loadingText">Starting up…</div>
+  <div class="bar-track"><div class="bar-fill" id="loadingBar"></div></div>
+</div>
+
+<!-- SETUP OVERLAY -->
+<div class="overlay" id="setupOverlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">⚙️ System Setup</div>
+    <div class="modal-sub">Enter your GitHub details to connect the attendance system. This is saved on your device and only needed once.</div>
+
+    <div class="input-group">
+      <label>GitHub Personal Access Token</label>
+      <input type="password" id="cfgToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+      <div class="hint">🔑 Needs <strong>gist</strong> scope. Create at:<br>GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)</div>
+    </div>
+    <div class="input-group">
+      <label>Config Gist ID &nbsp;<span style="font-size:10px;font-weight:600;color:var(--text3)">(employees + locations)</span></label>
+      <input type="text" id="cfgGistId" placeholder="e.g. a1b2c3d4e5f6g7h8i9j0k1l2">
+      <div class="hint">📂 Contains employee list and allowed check-in locations (filename: <strong>config.json</strong>)</div>
+    </div>
+    <div class="input-group">
+      <label>Attendance Gist ID &nbsp;<span style="font-size:10px;font-weight:600;color:var(--text3)">(records saved here)</span></label>
+      <input type="text" id="cfgAttGistId" placeholder="e.g. z9y8x7w6v5u4t3s2r1q0p9">
+      <div class="hint">📊 Attendance check-in / check-out records saved here (filename: <strong>attendance.json</strong>)</div>
+    </div>
+
+    <button class="btn-save" onclick="saveConfig()">💾 Save &amp; Connect</button>
+
+    <div class="divider"></div>
+    <div style="font-size:13px;color:var(--text2);font-weight:700;margin-bottom:10px;">📄 Config Gist template — save as <code style="background:var(--surface2);padding:2px 5px;border-radius:4px;">config.json</code></div>
+    <pre id="tplConfig"></pre>
+    <div style="font-size:13px;color:var(--text2);font-weight:700;margin:16px 0 10px;">📊 Attendance Gist template — save as <code style="background:var(--surface2);padding:2px 5px;border-radius:4px;">attendance.json</code></div>
+    <pre>{"records":[]}</pre>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- HEADER -->
+<div class="header">
+  <p id="headerDate">Loading…</p>
+  <h1>Staff Attendance</h1>
+  <div class="header-right">
+    <button class="icon-btn" onclick="openSetup()" title="Settings">⚙️</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="card-wrapper">
+
+  <div class="config-bar" id="configBar">
+    <span class="cfg-text"><span class="status-dot dot-warn" id="cfgDot"></span><span id="cfgLabel">Not configured</span></span>
+    <span class="cfg-link" id="cfgSetupLink" onclick="openSetup()">Setup →</span>
+  </div>
+
+  <div class="card">
+    <!-- DATE / TIME BAR -->
+    <div class="datetime-bar">
+      <div class="dt-block">
+        <div class="dt-label">Date</div>
+        <div class="dt-val" id="dispDate">—</div>
+      </div>
+      <div class="dt-divider"></div>
+      <div class="dt-block">
+        <div class="dt-label">Time</div>
+        <div class="dt-val" id="dispTime">—</div>
+      </div>
+      <div class="dt-divider"></div>
+      <div class="dt-block">
+        <div class="dt-label">Day</div>
+        <div class="dt-val" id="dispDay">—</div>
+      </div>
+    </div>
+
+    <!-- EMPLOYEE SELECT -->
+    <div class="field-label">Select Your Name</div>
+    <div class="select-wrapper">
+      <select id="empSelect" onchange="onEmployeeChange()">
+        <option value="">— Choose Your Name —</option>
+      </select>
+    </div>
+
+    <!-- LOCATION STATUS -->
+    <div class="loc-status idle" id="locStatus">
+      <div class="loc-icon" id="locIcon">📍</div>
+      <div>
+        <div class="loc-title" id="locTitle">Location not checked</div>
+        <div class="loc-sub"  id="locSub">Select your name to begin</div>
+      </div>
+    </div>
+
+    <!-- CHECK IN / OUT BUTTONS -->
+    <div class="btn-row">
+      <button class="btn-main btn-in"  id="btnIn"  onclick="doCheckIn()"  disabled>
+        <span class="btn-icon">✅</span>Check IN
+      </button>
+      <button class="btn-main btn-out" id="btnOut" onclick="doCheckOut()" disabled>
+        <span class="btn-icon">🚪</span>Check OUT
+      </button>
+    </div>
+  </div>
+
+  <!-- TODAY'S RECORDS -->
+  <div class="card">
+    <div class="section-title">Today's Attendance</div>
+    <div id="recordsList">
+      <div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>
+    </div>
+  </div>
+
+  <div style="height:24px"></div>
+</div>
+
+<script>
+const STORAGE_KEY = 'att_cfg_v2';
+const GIST_API    = 'https://api.github.com/gists/';
+const CONFIG_FILE = 'config.json';
+const ATT_FILE    = 'attendance.json';
+
+let cfg         = {};
+let employees   = [];
+let locations   = [];
+let todayRecs   = [];
+let currentPos  = null;
+let locVerified = false;
+let locName     = '';
+let watchId     = null;
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  updateClock();
+  setInterval(updateClock, 1000);
+  populateTemplate();
+  initApp();
+});
+
+async function initApp() {
+  setProgress(10);
+  cfg = loadCfg();
+
+  if (!cfg.token || !cfg.configGistId || !cfg.attendanceGistId) {
+    setLoadText('Setup needed…');
+    setProgress(100);
+    hideLoading();
+    updateBar(false);
+    openSetup();
+    return;
+  }
+
+  updateBar(true);
+  setLoadText('Loading employees…');
+  setProgress(40);
+  const ok = await fetchConfig();
+  if (!ok) { hideLoading(); return; }
+
+  setLoadText('Loading today\'s records…');
+  setProgress(75);
+  await fetchTodayRecords();
+
+  setProgress(100);
+  setLoadText('Ready!');
+  setTimeout(hideLoading, 500);
+}
+
+function setProgress(p) { document.getElementById('loadingBar').style.width = p + '%'; }
+function setLoadText(t) { document.getElementById('loadingText').textContent = t; }
+function hideLoading() {
+  const el = document.getElementById('loadingScreen');
+  el.classList.add('hide');
+  setTimeout(() => el.style.display = 'none', 450);
+}
+
+// ── CLOCK ─────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('dispDate').textContent = now.getDate() + ' ' + MONTHS[now.getMonth()] + ' ' + now.getFullYear();
+  document.getElementById('dispTime').textContent = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+  document.getElementById('dispDay').textContent  = DAYS[now.getDay()].slice(0,3);
+  document.getElementById('headerDate').textContent = DAYS[now.getDay()] + ', ' + MONTHS[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+}
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+// ── STORAGE ───────────────────────────────────────────────────────────────────
+function loadCfg()       { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; } }
+function saveCfg(obj)    { localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); }
+
+function updateBar(connected) {
+  document.getElementById('cfgDot').className  = 'status-dot ' + (connected ? 'dot-ok' : 'dot-warn');
+  document.getElementById('cfgLabel').textContent = connected ? 'Connected to GitHub Gist' : 'Not configured — tap Setup';
+  document.getElementById('cfgSetupLink').style.display = connected ? 'none' : '';
+}
+
+// ── GIST API ──────────────────────────────────────────────────────────────────
+async function gistGet(id) {
+  const r = await fetch(GIST_API + id, { headers: { Authorization: 'token ' + cfg.token, Accept: 'application/vnd.github.v3+json' } });
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' fetching Gist');
+  return r.json();
+}
+
+async function gistPatch(id, filename, content) {
+  const body = { files: {} };
+  body.files[filename] = { content: JSON.stringify(content, null, 2) };
+  const r = await fetch(GIST_API + id, {
+    method: 'PATCH',
+    headers: { Authorization: 'token ' + cfg.token, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' saving to Gist');
+}
+
+async function fetchConfig() {
+  try {
+    const gist = await gistGet(cfg.configGistId);
+    const raw  = gist.files[CONFIG_FILE];
+    if (!raw) { showToast('config.json not found in Config Gist', 'error'); return false; }
+    const data = JSON.parse(raw.content);
+    employees  = data.employees || [];
+    locations  = data.locations  || [];
+    populateEmployees();
+    return true;
+  } catch(e) { showToast('Config error: ' + e.message, 'error'); return false; }
+}
+
+async function fetchTodayRecords() {
+  try {
+    const gist = await gistGet(cfg.attendanceGistId);
+    const raw  = gist.files[ATT_FILE];
+    const data = raw ? JSON.parse(raw.content) : { records: [] };
+    todayRecs  = (data.records || []).filter(r => r.date === todayStr());
+    renderRecords();
+  } catch { todayRecs = []; renderRecords(); }
+}
+
+// ── EMPLOYEES ─────────────────────────────────────────────────────────────────
+function populateEmployees() {
+  const sel = document.getElementById('empSelect');
+  sel.innerHTML = '<option value="">— Choose Your Name —</option>';
+  employees.forEach(e => {
+    const o = document.createElement('option');
+    o.value = e.id; o.textContent = e.name;
+    sel.appendChild(o);
+  });
+}
+
+function onEmployeeChange() {
+  resetLoc();
+  disableBtns();
+  const id = document.getElementById('empSelect').value;
+  if (!id) return;
+  if (!cfg.token) { showToast('Please configure the system first', 'warning'); return; }
+  startWatch();
+}
+
+// ── LOCATION ──────────────────────────────────────────────────────────────────
+function startWatch() {
+  setLoc('checking', '📡', 'Getting your location…', 'Please hold still');
+  if (!navigator.geolocation) { setLoc('failed', '❌', 'GPS not supported', 'Use Chrome or Safari'); return; }
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+}
+
+function onPos(pos) {
+  currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
+  checkProximity();
+}
+
+function onPosErr(e) {
+  const msgs = { 1: 'Location permission denied — please allow GPS', 2: 'Location unavailable', 3: 'Location timed out' };
+  setLoc('failed', '❌', msgs[e.code] || 'Location error', 'Enable GPS and try again');
+  disableBtns();
+}
+
+function checkProximity() {
+  if (!locations.length) { setLoc('failed', '⚠️', 'No locations in config', 'Add locations to config Gist'); return; }
+  let best = null, bestDist = Infinity;
+  locations.forEach(loc => {
+    const d = haversine(currentPos.lat, currentPos.lng, loc.lat, loc.lng);
+    if (d < bestDist) { bestDist = d; best = loc; }
+  });
+  const tol  = best.tolerance || 10;
+  const dist = Math.round(bestDist);
+  if (bestDist <= tol) {
+    locVerified = true; locName = best.name;
+    setLoc('verified', '✅', best.name, 'You are ' + dist + 'm away — location verified ✓');
+    updateBtns();
+  } else {
+    locVerified = false;
+    setLoc('failed', '🚫', 'Outside allowed area', 'Nearest: ' + best.name + ' (' + dist + 'm away, need within ' + tol + 'm)');
+    disableBtns();
+  }
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000, toR = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toR, dLng = (lng2 - lng1) * toR;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*toR) * Math.cos(lat2*toR) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function setLoc(cls, icon, title, sub) {
+  document.getElementById('locStatus').className  = 'loc-status ' + cls;
+  document.getElementById('locIcon').textContent  = icon;
+  document.getElementById('locTitle').textContent = title;
+  document.getElementById('locSub').textContent   = sub;
+}
+
+function resetLoc() {
+  locVerified = false; locName = ''; currentPos = null;
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  setLoc('idle', '📍', 'Location not checked', 'Select your name to begin');
+}
+
+// ── BUTTONS ───────────────────────────────────────────────────────────────────
+function updateBtns() {
+  const id  = document.getElementById('empSelect').value;
+  const rec = todayRecs.find(r => r.employeeId === id && r.date === todayStr());
+  const btnIn  = document.getElementById('btnIn');
+  const btnOut = document.getElementById('btnOut');
+  if (!rec)                          { btnIn.disabled = false; btnOut.disabled = true;  }
+  else if (rec.checkIn && !rec.checkOut) { btnIn.disabled = true;  btnOut.disabled = false; }
+  else                               { btnIn.disabled = true;  btnOut.disabled = true;  }
+}
+
+function disableBtns() {
+  document.getElementById('btnIn').disabled  = true;
+  document.getElementById('btnOut').disabled = true;
+}
+
+// ── ACTIONS ───────────────────────────────────────────────────────────────────
+async function doCheckIn() {
+  if (!locVerified) { showToast('Location not verified', 'error'); return; }
+  const emp = getEmp(); if (!emp) return;
+  const now = new Date();
+  const rec = { employeeId: emp.id, name: emp.name, date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng };
+  await withBtnLoad('btnIn', async () => {
+    await appendRecord(rec);
+    todayRecs.push(rec);
+    renderRecords(); updateBtns();
+    showToast('✅ Checked IN at ' + rec.checkIn, 'success');
+  });
+}
+
+async function doCheckOut() {
+  if (!locVerified) { showToast('Location not verified', 'error'); return; }
+  const emp = getEmp(); if (!emp) return;
+  const rec = todayRecs.find(r => r.employeeId === emp.id && r.date === todayStr() && !r.checkOut);
+  if (!rec) { showToast('No active check-in found', 'error'); return; }
+  const now = new Date();
+  rec.checkOut = timeStr(now); rec.checkOutTimestamp = now.toISOString();
+  await withBtnLoad('btnOut', async () => {
+    await saveAll();
+    renderRecords(); updateBtns();
+    showToast('🚪 Checked OUT at ' + rec.checkOut, 'success');
+  });
+}
+
+async function withBtnLoad(id, fn) {
+  const btn = document.getElementById(id);
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true;
+  try { await fn(); } catch(e) { showToast('Error: ' + e.message, 'error'); }
+  btn.innerHTML = orig;
+}
+
+// ── RECORD OPS ────────────────────────────────────────────────────────────────
+async function appendRecord(rec) {
+  const gist = await gistGet(cfg.attendanceGistId);
+  const raw  = gist.files[ATT_FILE];
+  const data = raw ? JSON.parse(raw.content) : { records: [] };
+  data.records = data.records || [];
+  data.records.push(rec);
+  await gistPatch(cfg.attendanceGistId, ATT_FILE, data);
+}
+
+async function saveAll() {
+  const gist = await gistGet(cfg.attendanceGistId);
+  const raw  = gist.files[ATT_FILE];
+  const data = raw ? JSON.parse(raw.content) : { records: [] };
+  const today  = todayStr();
+  const others = (data.records || []).filter(r => r.date !== today);
+  data.records  = [...others, ...todayRecs];
+  await gistPatch(cfg.attendanceGistId, ATT_FILE, data);
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function renderRecords() {
+  const el = document.getElementById('recordsList');
+  if (!todayRecs.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>'; return; }
+  const sorted = [...todayRecs].sort((a,b) => (a.checkInTimestamp||'').localeCompare(b.checkInTimestamp||''));
+  el.innerHTML = sorted.map(r => {
+    const init = r.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    const inC  = r.checkIn  ? `<span class="time-chip chip-in">▲ ${r.checkIn}</span>` : '';
+    const outC = r.checkOut ? `<span class="time-chip chip-out">▼ ${r.checkOut}</span>` : (r.checkIn ? '<span class="time-chip chip-pending">⏳ Active</span>' : '');
+    return `<div class="record-item"><div class="record-avatar">${init}</div><div class="record-info"><div class="record-name">${r.name}</div><div class="record-loc">📍 ${r.location||'—'}</div></div><div class="record-times">${inC}${outC}</div></div>`;
+  }).join('');
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function getEmp()    { const id = document.getElementById('empSelect').value; return employees.find(e => e.id === id) || null; }
+function todayStr()  { const d = new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function timeStr(d)  { return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
+
+let toastTmr;
+function showToast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'toast ' + type;
+  void el.offsetWidth;
+  el.classList.add('show');
+  clearTimeout(toastTmr);
+  toastTmr = setTimeout(() => el.classList.remove('show'), 3400);
+}
+
+// ── SETUP MODAL ───────────────────────────────────────────────────────────────
+function openSetup() {
+  document.getElementById('setupOverlay').classList.add('open');
+  if (cfg.token)            document.getElementById('cfgToken').value    = cfg.token;
+  if (cfg.configGistId)     document.getElementById('cfgGistId').value   = cfg.configGistId;
+  if (cfg.attendanceGistId) document.getElementById('cfgAttGistId').value = cfg.attendanceGistId;
+}
+
+document.getElementById('setupOverlay').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+
+async function saveConfig() {
+  const token  = document.getElementById('cfgToken').value.trim();
+  const gistId = document.getElementById('cfgGistId').value.trim();
+  const attId  = document.getElementById('cfgAttGistId').value.trim();
+  if (!token || !gistId || !attId) { showToast('All fields are required', 'error'); return; }
+  cfg = { token, configGistId: gistId, attendanceGistId: attId };
+  saveCfg(cfg);
+  document.getElementById('setupOverlay').classList.remove('open');
+  updateBar(true);
+
+  const ls = document.getElementById('loadingScreen');
+  ls.style.display = 'flex'; ls.classList.remove('hide');
+  setProgress(20); setLoadText('Loading employees…');
+  const ok = await fetchConfig();
+  if (ok) { setProgress(70); setLoadText('Loading records…'); await fetchTodayRecords(); }
+  setProgress(100); setLoadText(ok ? 'Connected!' : 'Done');
+  setTimeout(hideLoading, 600);
+  if (ok) showToast('✅ Connected successfully!', 'success');
+}
+
+// ── TEMPLATE ──────────────────────────────────────────────────────────────────
+function populateTemplate() {
+  document.getElementById('tplConfig').textContent = JSON.stringify({
+    employees: [
+      { id: 'EMP001', name: 'Ravi Kumar' },
+      { id: 'EMP002', name: 'Priya Sharma' },
+      { id: 'EMP003', name: 'Anil Das' }
+    ],
+    locations: [
+      { name: 'Main Office', lat: 24.18500, lng: 88.26700, tolerance: 10 },
+      { name: 'Branch Office', lat: 24.19000, lng: 88.27000, tolerance: 10 }
+    ]
+  }, null, 2);
+}
+</script>
+</body>
+</html>
