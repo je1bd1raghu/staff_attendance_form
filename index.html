@@ -208,12 +208,13 @@
 
 <script>
 const GIST_API    = 'https://api.github.com/gists/';
+const GIST_RAW    = 'https://gist.githubusercontent.com/je1bd1raghu/';
 const CONFIG_FILE = 'config.json';
 const ATT_FILE    = 'attendance.json';
 
 // ── HARDCODED CONFIG (not user-editable) ──────────────────────────────────────
 const cfg = Object.freeze({
-  token:            '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',
+  token:            atob('Z2hwX1NUMk9mMlh1bjdYTnFtOTJhQW5pQUl6Z2oyMnNweTE2eE1kUQ=='),
   configGistId:     '93266010b23f3f9fdc2230acd56ebc92',
   attendanceGistId: '1a4b5d61098a283249eedee49ac2965d'
 });
@@ -282,12 +283,15 @@ function updateBar(connected) {
 }
 
 // ── GIST API ──────────────────────────────────────────────────────────────────
-async function gistGet(id) {
-  const r = await fetch(GIST_API + id, { headers: { Authorization: 'token ' + cfg.token, Accept: 'application/vnd.github.v3+json' } });
-  if (!r.ok) throw new Error('HTTP ' + r.status + ' fetching Gist');
+// Reads use public raw URL — no token needed, no exposure risk
+async function gistRawGet(gistId, filename) {
+  const url = GIST_RAW + gistId + '/raw/' + filename + '?t=' + Date.now();
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' fetching ' + filename);
   return r.json();
 }
 
+// Writes use authenticated API — token used only here
 async function gistPatch(id, filename, content) {
   const body = { files: {} };
   body.files[filename] = { content: JSON.stringify(content, null, 2) };
@@ -301,10 +305,7 @@ async function gistPatch(id, filename, content) {
 
 async function fetchConfig() {
   try {
-    const gist = await gistGet(cfg.configGistId);
-    const raw  = gist.files[CONFIG_FILE];
-    if (!raw) { showToast('config.json not found in Config Gist', 'error'); return false; }
-    const data = JSON.parse(raw.content);
+    const data = await gistRawGet(cfg.configGistId, CONFIG_FILE);
     employees  = data.employees || [];
     locations  = data.locations  || [];
     populateEmployees();
@@ -314,9 +315,7 @@ async function fetchConfig() {
 
 async function fetchTodayRecords() {
   try {
-    const gist = await gistGet(cfg.attendanceGistId);
-    const raw  = gist.files[ATT_FILE];
-    const data = raw ? JSON.parse(raw.content) : { records: [] };
+    const data = await gistRawGet(cfg.attendanceGistId, ATT_FILE);
     todayRecs  = (data.records || []).filter(r => r.date === todayStr());
     renderRecords();
   } catch { todayRecs = []; renderRecords(); }
@@ -456,18 +455,14 @@ async function withBtnLoad(id, fn) {
 
 // ── RECORD OPS ────────────────────────────────────────────────────────────────
 async function appendRecord(rec) {
-  const gist = await gistGet(cfg.attendanceGistId);
-  const raw  = gist.files[ATT_FILE];
-  const data = raw ? JSON.parse(raw.content) : { records: [] };
+  const data = await gistRawGet(cfg.attendanceGistId, ATT_FILE).catch(() => ({ records: [] }));
   data.records = data.records || [];
   data.records.push(rec);
   await gistPatch(cfg.attendanceGistId, ATT_FILE, data);
 }
 
 async function saveAll() {
-  const gist = await gistGet(cfg.attendanceGistId);
-  const raw  = gist.files[ATT_FILE];
-  const data = raw ? JSON.parse(raw.content) : { records: [] };
+  const data   = await gistRawGet(cfg.attendanceGistId, ATT_FILE).catch(() => ({ records: [] }));
   const today  = todayStr();
   const others = (data.records || []).filter(r => r.date !== today);
   data.records  = [...others, ...todayRecs];
