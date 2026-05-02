@@ -361,6 +361,14 @@ function populateEmployees() {
 
 function esc(s) { return String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
 
+function hi(s, q) {
+  if (!q) return esc(s);
+  try {
+    var safe = q.replace(/[-\[\]{}()*+?.,\\^$|#]/g, '\\$&');
+    return esc(s).replace(new RegExp(safe, 'gi'), function(m){ return '<mark>'+m+'</mark>'; });
+  } catch(ex) { return esc(s); }
+}
+
 function renderDropdown(query) {
   const dd = document.getElementById('comboDropdown');
   const q  = query.trim().toLowerCase();
@@ -368,13 +376,9 @@ function renderDropdown(query) {
     ? employees.filter(e => e.name.toLowerCase().includes(q) || (e.designation||'').toLowerCase().includes(q))
     : employees;
   if (!list.length) { dd.innerHTML = '<div class="combo-empty">No employees found</div>'; return; }
-  function hi(s) {
-    if (!q) return esc(s);
-    try { var re=new RegExp(q.split('').map(function(c){return c.replace(/[-[\]{}()*+?.,\\^$|#]/g,'\\$&');}).join(''),'gi'); return esc(s).replace(re,function(m){return '<mark>'+m+'</mark>';}); } catch(e){ return esc(s); }
-  }
   dd.innerHTML = list.map(e => {
-    const desig = e.designation ? ' <span style="opacity:.55;font-size:13px">— '+hi(e.designation)+'</span>' : '';
-    return '<div class="combo-item" onclick="selectEmployee('+JSON.stringify(e.id)+')">'+hi(e.name)+desig+'</div>';
+    const desig = e.designation ? '<div class="combo-desig">'+hi(e.designation, q)+'</div>' : '';
+    return '<div class="combo-item" data-id="'+esc(e.id)+'">'+hi(e.name, q)+desig+'</div>';
   }).join('');
 }
 
@@ -410,7 +414,14 @@ function clearEmployee() {
   renderDropdown(''); resetLoc(); disableBtns();
 }
 
-document.addEventListener('click', e => {
+// Delegated click on dropdown items (avoids inline onclick / quoting issues)
+document.getElementById('comboDropdown').addEventListener('mousedown', function(e) {
+  const item = e.target.closest('.combo-item');
+  if (item) { e.preventDefault(); selectEmployee(item.dataset.id); }
+});
+
+// Close when clicking outside the combobox
+document.addEventListener('click', function(e) {
   const w = document.getElementById('comboWrapper');
   if (w && !w.contains(e.target)) closeDropdown();
 });
@@ -419,14 +430,15 @@ function onEmployeeChange() {
   resetLoc(); disableBtns();
   const id = document.getElementById('empSelect').value;
   if (!id) return;
-  startWatch();
+  ensureWatch();           // starts ONE watch for the whole session
+  if (currentPos) checkProximity();  // re-use cached position immediately
 }
 
 // ── LOCATION ──────────────────────────────────────────────────────────────────
-function startWatch() {
-  setLoc('checking', '📡', 'Getting your location…', 'Please hold still');
+function ensureWatch() {
+  if (watchId !== null) return;   // already watching — do NOT re-prompt
   if (!navigator.geolocation) { setLoc('failed', '❌', 'GPS not supported', 'Use Chrome or Safari'); return; }
-  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  setLoc('checking', '📡', 'Getting your location…', 'Please hold still');
   watchId = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
 }
 
@@ -492,8 +504,8 @@ function setLoc(cls, icon, title, sub) {
 }
 
 function resetLoc() {
-  locVerified = false; locName = ''; currentPos = null;
-  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  locVerified = false; locName = '';
+  // Keep watchId + currentPos alive — avoids re-prompting permission on employee switch
   setLoc('idle', '📍', 'Location not checked', 'Select your name to begin');
 }
 
