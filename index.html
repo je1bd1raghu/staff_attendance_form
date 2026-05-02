@@ -48,6 +48,23 @@
   .select-wrapper::after { content: '▼'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text3); pointer-events: none; }
   select { width: 100%; padding: 16px 44px 16px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 600; color: var(--text); background: white; appearance: none; cursor: pointer; transition: border-color 0.2s; }
   select:focus { outline: none; border-color: var(--primary); }
+  /* ── Searchable combobox ── */
+  .combo-wrapper { position: relative; margin-bottom: 20px; }
+  .combo-input-row { display: flex; align-items: center; border: 2px solid var(--border); border-radius: var(--radius-sm); background: white; transition: border-color 0.2s; }
+  .combo-wrapper.open .combo-input-row,
+  .combo-input-row:focus-within { border-color: var(--primary); }
+  .combo-search-icon { padding: 0 10px 0 14px; font-size: 16px; flex-shrink: 0; }
+  .combo-input { flex: 1; padding: 15px 0; border: none; outline: none; font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 600; color: var(--text); background: transparent; }
+  .combo-input::placeholder { color: var(--text3); font-weight: 400; }
+  .combo-clear { background: none; border: none; padding: 0 14px; font-size: 16px; color: var(--text3); cursor: pointer; line-height: 1; flex-shrink: 0; }
+  .combo-clear:hover { color: var(--danger); }
+  .combo-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 2px solid var(--primary); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); z-index: 200; max-height: 240px; overflow-y: auto; }
+  .combo-item { padding: 13px 16px; cursor: pointer; font-size: 15px; font-weight: 600; color: var(--text); border-bottom: 1px solid var(--border); transition: background 0.12s; }
+  .combo-item:last-child { border-bottom: none; }
+  .combo-item:hover, .combo-item.active { background: var(--primary-light); color: var(--primary); }
+  .combo-item mark { background: #FDE68A; color: var(--text); border-radius: 3px; padding: 0 2px; font-style: normal; }
+  .combo-item .combo-desig { font-size: 11px; font-weight: 700; color: var(--text3); margin-top: 2px; }
+  .combo-empty { padding: 18px 16px; text-align: center; color: var(--text3); font-size: 14px; }
   .loc-status { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--radius-sm); margin-bottom: 20px; border: 2px solid transparent; transition: all 0.3s; }
   .loc-status.checking { background: var(--warning-light); border-color: #FDE68A; }
   .loc-status.verified { background: var(--success-light); border-color: #BBF7D0; }
@@ -168,13 +185,19 @@
       </div>
     </div>
 
-    <!-- EMPLOYEE SELECT -->
+    <!-- EMPLOYEE SEARCH COMBOBOX -->
     <div class="field-label">Select Your Name</div>
-    <div class="select-wrapper">
-      <select id="empSelect" onchange="onEmployeeChange()">
-        <option value="">— Choose Your Name —</option>
-      </select>
+    <div class="combo-wrapper" id="comboWrapper">
+      <div class="combo-input-row">
+        <span class="combo-search-icon">&#128269;</span>
+        <input type="text" id="empSearch" class="combo-input" placeholder="Type to search your name…"
+               autocomplete="off" oninput="filterEmployees()" onfocus="openDropdown()" />
+        <button class="combo-clear" id="comboClear" onclick="clearEmployee()" style="display:none">&#x2715;</button>
+      </div>
+      <div class="combo-dropdown" id="comboDropdown" style="display:none"></div>
     </div>
+    <!-- hidden select keeps getEmp() / updateBtns() working unchanged -->
+    <select id="empSelect" style="display:none"></select>
 
     <!-- LOCATION STATUS -->
     <div class="loc-status idle" id="locStatus">
@@ -322,24 +345,80 @@ async function fetchTodayRecords() {
   } catch { todayRecs = []; renderRecords(); }
 }
 
-// ── EMPLOYEES ─────────────────────────────────────────────────────────────────
+// ── EMPLOYEES ─────────────────────────────────────────────────────────────────────────────
 function populateEmployees() {
+  employees.sort((a, b) => a.name.localeCompare(b.name));
+  // Sync hidden select so getEmp() / updateBtns() keep working unchanged
   const sel = document.getElementById('empSelect');
-  sel.innerHTML = '<option value="">— Choose Your Name —</option>';
+  sel.innerHTML = '<option value=""></option>';
   employees.forEach(e => {
     const o = document.createElement('option');
-    o.value = e.id;
-    o.textContent = e.name + (e.designation ? ' — ' + e.designation : '');
+    o.value = e.id; o.textContent = e.name;
     sel.appendChild(o);
   });
+  renderDropdown('');
 }
 
+function esc(s) { return String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+function renderDropdown(query) {
+  const dd = document.getElementById('comboDropdown');
+  const q  = query.trim().toLowerCase();
+  const list = q
+    ? employees.filter(e => e.name.toLowerCase().includes(q) || (e.designation||'').toLowerCase().includes(q))
+    : employees;
+  if (!list.length) { dd.innerHTML = '<div class="combo-empty">No employees found</div>'; return; }
+  function hi(s) {
+    if (!q) return esc(s);
+    try { var re=new RegExp(q.split('').map(function(c){return c.replace(/[-[\]{}()*+?.,\\^$|#]/g,'\\$&');}).join(''),'gi'); return esc(s).replace(re,function(m){return '<mark>'+m+'</mark>';}); } catch(e){ return esc(s); }
+  }
+  dd.innerHTML = list.map(e => {
+    const desig = e.designation ? ' <span style="opacity:.55;font-size:13px">— '+hi(e.designation)+'</span>' : '';
+    return '<div class="combo-item" onclick="selectEmployee('+JSON.stringify(e.id)+')">'+hi(e.name)+desig+'</div>';
+  }).join('');
+}
+
+function filterEmployees() {
+  const q = document.getElementById('empSearch').value;
+  document.getElementById('comboClear').style.display = q ? '' : 'none';
+  openDropdown(); renderDropdown(q);
+}
+
+function openDropdown() {
+  document.getElementById('comboDropdown').style.display = 'block';
+  document.getElementById('comboWrapper').classList.add('open');
+}
+
+function closeDropdown() {
+  document.getElementById('comboDropdown').style.display = 'none';
+  document.getElementById('comboWrapper').classList.remove('open');
+}
+
+function selectEmployee(id) {
+  const emp = employees.find(e => e.id === id);
+  if (!emp) return;
+  document.getElementById('empSearch').value = emp.name + (emp.designation ? ' — ' + emp.designation : '');
+  document.getElementById('comboClear').style.display = '';
+  document.getElementById('empSelect').value = id;
+  closeDropdown(); onEmployeeChange();
+}
+
+function clearEmployee() {
+  document.getElementById('empSearch').value = '';
+  document.getElementById('comboClear').style.display = 'none';
+  document.getElementById('empSelect').value = '';
+  renderDropdown(''); resetLoc(); disableBtns();
+}
+
+document.addEventListener('click', e => {
+  const w = document.getElementById('comboWrapper');
+  if (w && !w.contains(e.target)) closeDropdown();
+});
+
 function onEmployeeChange() {
-  resetLoc();
-  disableBtns();
+  resetLoc(); disableBtns();
   const id = document.getElementById('empSelect').value;
   if (!id) return;
-  if (!cfg.token) { showToast('System error: no token', 'warning'); return; }
   startWatch();
 }
 
