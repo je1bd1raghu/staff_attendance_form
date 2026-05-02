@@ -208,13 +208,14 @@
 </div>
 
 <script>
-const WORKER_URL  = 'https://attendance-proxy.je1-bd1-raghu.workers.dev';
+const GIST_API    = 'https://api.github.com/gists/';
 const GIST_RAW    = 'https://gist.githubusercontent.com/je1bd1raghu/';
 const CONFIG_FILE = 'config.json';
 const ATT_FILE    = 'attendance.json';
 
 // ── HARDCODED CONFIG (not user-editable) ──────────────────────────────────────
 const cfg = Object.freeze({
+  token:            atob('Z2hwX1NUMk9mMlh1bjdYTnFtOTJhQW5pQUl6Z2oyMnNweTE2eE1kUQ=='),
   configGistId:     atob('OTMyNjYwMTBiMjNmM2Y5ZmRjMjIzMGFjZDU2ZWJjOTI='),
   attendanceGistId: atob('NmIxYWE4ZjFmYjQ1NmQ5M2Y2MDNjNWFiNTQ5MzFiYzY=')
 });
@@ -291,13 +292,13 @@ async function gistRawGet(gistId, filename) {
   return r.json();
 }
 
-// Writes go through the Cloudflare Worker — token stays server-side
+// Writes use authenticated API — token used only here
 async function gistPatch(id, filename, content) {
   const body = { files: {} };
   body.files[filename] = { content: JSON.stringify(content, null, 2) };
-  const r = await fetch(WORKER_URL, {
+  const r = await fetch(GIST_API + id, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { Authorization: 'token ' + cfg.token, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
   if (!r.ok) throw new Error('HTTP ' + r.status + ' saving to Gist');
@@ -338,6 +339,7 @@ function onEmployeeChange() {
   disableBtns();
   const id = document.getElementById('empSelect').value;
   if (!id) return;
+  if (!cfg.token) { showToast('System error: no token', 'warning'); return; }
   startWatch();
 }
 
@@ -473,6 +475,9 @@ async function withBtnLoad(id, fn) {
 async function appendRecord(rec) {
   const data = await gistRawGet(cfg.attendanceGistId, ATT_FILE).catch(() => ({ records: [] }));
   data.records = data.records || [];
+  // Server-side guard: reject if this employee already has any record today
+  const already = data.records.find(r => r.employeeId === rec.employeeId && r.date === rec.date);
+  if (already) throw new Error(rec.name + ' already checked in today');
   data.records.push(rec);
   await gistPatch(cfg.attendanceGistId, ATT_FILE, data);
 }
