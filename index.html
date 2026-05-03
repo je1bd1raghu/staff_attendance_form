@@ -234,7 +234,7 @@
 const GIST_API    = 'https://api.github.com/gists/';
 const GIST_RAW    = 'https://gist.githubusercontent.com/je1bd1raghu/';
 const CONFIG_FILE = 'config.json';
-const ATT_FILE    = 'attendance.json';
+const ATT_FILE    = 'attendance.csv';
 
 // ── HARDCODED CONFIG (not user-editable) ──────────────────────────────────────
 const cfg = Object.freeze({
@@ -318,6 +318,65 @@ function updateBar(connected) {
 
 // ── GIST API ──────────────────────────────────────────────────────────────────
 // Reads use public raw URL — no token needed, no exposure risk
+// ── CSV HELPERS ───────────────────────────────────────────────────────────────
+const CSV_COLS = ['employeeId','name','designation','date','checkIn','checkInTimestamp',
+                  'checkOut','checkOutTimestamp','location','lat','lng','deviceIP'];
+
+function csvEscape(v) {
+  const s = v == null ? '' : String(v);
+  return (s.includes(',') || s.includes('"') || s.includes('\n'))
+    ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function csvStringify(records) {
+  const header = CSV_COLS.join(',');
+  const rows   = records.map(r => CSV_COLS.map(c => csvEscape(r[c])).join(','));
+  return [header, ...rows].join('\n');
+}
+
+function csvParse(text) {
+  if (!text || !text.trim()) return [];
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',');
+  return lines.slice(1).map(line => {
+    const vals = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQ) { if (ch === '"' && line[i+1] === '"') { cur += '"'; i++; }
+                 else if (ch === '"') inQ = false;
+                 else cur += ch; }
+      else if (ch === '"') inQ = true;
+      else if (ch === ',') { vals.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    vals.push(cur);
+    const rec = {};
+    headers.forEach((h, i) => { rec[h.trim()] = vals[i] !== undefined ? vals[i].trim() : ''; });
+    return rec;
+  });
+}
+
+// Attendance-specific read/write (CSV format)
+async function attGet() {
+  const url = GIST_RAW + cfg.attendanceGistId + '/raw/' + ATT_FILE + '?t=' + Date.now();
+  const r   = await fetch(url);
+  if (!r.ok) return [];
+  return csvParse(await r.text());
+}
+
+async function attPatch(records) {
+  const csvContent = csvStringify(records);
+  const body = { files: {} };
+  body.files[ATT_FILE] = { content: csvContent };
+  const r = await fetch(WORKER_URL, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' saving to Gist');
+}
+
 async function gistRawGet(gistId, filename) {
   const url = GIST_RAW + gistId + '/raw/' + filename + '?t=' + Date.now();
   const r = await fetch(url);
@@ -349,8 +408,8 @@ async function fetchConfig() {
 
 async function fetchTodayRecords() {
   try {
-    const data = await gistRawGet(cfg.attendanceGistId, ATT_FILE);
-    todayRecs  = (data.records || []).filter(r => r.date === todayStr());
+    const records = await attGet();
+    todayRecs     = records.filter(r => r.date === todayStr());
     renderRecords();
   } catch { todayRecs = []; renderRecords(); }
 }
@@ -595,37 +654,31 @@ function markDeviceIn()     { const l = getDeviceLog(); l.checkedIn  = true; sav
 function markDeviceOut()    { const l = getDeviceLog(); l.checkedOut = true; saveDeviceLog(l); }
 // ── RECORD OPS ────────────────────────────────────────────────────────────────
 async function appendRecord(rec) {
-  const data = await gistRawGet(cfg.attendanceGistId, ATT_FILE).catch(() => ({ records: [] }));
-  data.records = data.records || [];
+  const records = await attGet().catch(() => []);
   // IP guard: block if any employee already checked in from this device today
   if (rec.deviceIP) {
-    const sameIP = data.records.find(r => r.date === rec.date && r.deviceIP === rec.deviceIP && r.checkIn);
+    const sameIP = records.find(r => r.date === rec.date && r.deviceIP === rec.deviceIP && r.checkIn);
     if (sameIP) throw new Error('Another employee (' + sameIP.name + ') has already checked in from this device today');
   }
   // Employee guard: reject if this employee already has a record today
-  const already = data.records.find(r => r.employeeId === rec.employeeId && r.date === rec.date);
+  const already = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date);
   if (already) throw new Error(rec.name + ' already checked in today');
-  data.records.push(rec);
-  await gistPatch(cfg.attendanceGistId, ATT_FILE, data);
+  records.push(rec);
+  await attPatch(records);
 }
 
 async function saveAll() {
-  const data   = await gistRawGet(cfg.attendanceGistId, ATT_FILE).catch(() => ({ records: [] }));
-  const today  = todayStr();
-  const others = (data.records || []).filter(r => r.date !== today);
+  const allRecs = await attGet().catch(() => []);
+  const today   = todayStr();
+  const others  = allRecs.filter(r => r.date !== today);
   // IP guard for check-out: block if a *different* employee already checked out from this device
   if (clientIP) {
     const emp = getEmp();
-    const sameIPOut = others.length === 0
-      ? data.records.find(r => r.date === today && r.deviceIP === clientIP && r.checkOut && emp && r.employeeId !== emp.id)
-      : null;
-    // Check within today's Gist records (before our local merge)
-    const todayGist = (data.records || []).filter(r => r.date === today);
+    const todayGist = allRecs.filter(r => r.date === today);
     const ipOutConflict = todayGist.find(r => r.deviceIP === clientIP && r.checkOut && emp && r.employeeId !== emp.id);
     if (ipOutConflict) throw new Error('Another employee (' + ipOutConflict.name + ') has already checked out from this device today');
   }
-  data.records  = [...others, ...todayRecs];
-  await gistPatch(cfg.attendanceGistId, ATT_FILE, data);
+  await attPatch([...others, ...todayRecs]);
 }
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
