@@ -250,6 +250,7 @@ let currentPos  = null;
 let locVerified = false;
 let locName     = '';
 let watchId     = null;
+let clientIP    = null;   // fetched once on load — cross-browser device fingerprint
 
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
@@ -259,10 +260,19 @@ window.addEventListener('DOMContentLoaded', () => {
   initApp();
 });
 
+async function fetchClientIP() {
+  try {
+    const r = await fetch('https://api.ipify.org?format=json');
+    const j = await r.json();
+    clientIP = j.ip || null;
+  } catch(e) { clientIP = null; }
+}
+
 async function initApp() {
   setProgress(10);
   updateBar(true);
   setLoadText('Loading employees…');
+  await fetchClientIP();   // get public IP before anything else
   setProgress(40);
   const ok = await fetchConfig();
   if (!ok) { hideLoading(); return; }
@@ -515,9 +525,13 @@ function updateBtns() {
   const rec = todayRecs.find(r => r.employeeId === id && r.date === todayStr());
   const btnIn  = document.getElementById('btnIn');
   const btnOut = document.getElementById('btnOut');
-  if (!rec)                          { btnIn.disabled = false; btnOut.disabled = true;  }
-  else if (rec.checkIn && !rec.checkOut) { btnIn.disabled = true;  btnOut.disabled = false; }
-  else                               { btnIn.disabled = true;  btnOut.disabled = true;  }
+  const dIn  = deviceCheckedIn();
+  const dOut = deviceCheckedOut();
+  if (!rec)                              { btnIn.disabled = dIn;  btnOut.disabled = true;  }
+  else if (rec.checkIn && !rec.checkOut) { btnIn.disabled = true; btnOut.disabled = dOut; }
+  else                                   { btnIn.disabled = true; btnOut.disabled = true;  }
+  btnIn.title  = dIn  ? 'This device has already checked in today'  : '';
+  btnOut.title = dOut ? 'This device has already checked out today' : '';
 }
 
 function disableBtns() {
@@ -530,7 +544,7 @@ async function doCheckIn() {
   if (!locVerified) { showToast('Location not verified', 'error'); return; }
   const emp = getEmp(); if (!emp) return;
   const now = new Date();
-  const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '', date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng };
+  const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '', date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceIP: clientIP };
   await withBtnLoad('btnIn', async () => {
     await appendRecord(rec);
     todayRecs.push(rec);
@@ -562,11 +576,33 @@ async function withBtnLoad(id, fn) {
   btn.innerHTML = orig;
 }
 
+
+// ── DEVICE LOCK ─────────────────────────────────────────────────────────────────────────────
+// One check-in and one check-out allowed per device per calendar day.
+const DEVICE_KEY = 'att_device_lock';
+function getDeviceLog() {
+  try {
+    const raw = localStorage.getItem(DEVICE_KEY);
+    const log = raw ? JSON.parse(raw) : {};
+    if (log.date !== todayStr()) return { date: todayStr(), checkedIn: false, checkedOut: false };
+    return log;
+  } catch(e) { return { date: todayStr(), checkedIn: false, checkedOut: false }; }
+}
+function saveDeviceLog(log) { try { localStorage.setItem(DEVICE_KEY, JSON.stringify(log)); } catch(e) {} }
+function deviceCheckedIn()  { return getDeviceLog().checkedIn;  }
+function deviceCheckedOut() { return getDeviceLog().checkedOut; }
+function markDeviceIn()     { const l = getDeviceLog(); l.checkedIn  = true; saveDeviceLog(l); }
+function markDeviceOut()    { const l = getDeviceLog(); l.checkedOut = true; saveDeviceLog(l); }
 // ── RECORD OPS ────────────────────────────────────────────────────────────────
 async function appendRecord(rec) {
   const data = await gistRawGet(cfg.attendanceGistId, ATT_FILE).catch(() => ({ records: [] }));
   data.records = data.records || [];
-  // Server-side guard: reject if this employee already has any record today
+  // IP guard: block if any employee already checked in from this device today
+  if (rec.deviceIP) {
+    const sameIP = data.records.find(r => r.date === rec.date && r.deviceIP === rec.deviceIP && r.checkIn);
+    if (sameIP) throw new Error('Another employee (' + sameIP.name + ') has already checked in from this device today');
+  }
+  // Employee guard: reject if this employee already has a record today
   const already = data.records.find(r => r.employeeId === rec.employeeId && r.date === rec.date);
   if (already) throw new Error(rec.name + ' already checked in today');
   data.records.push(rec);
@@ -577,6 +613,17 @@ async function saveAll() {
   const data   = await gistRawGet(cfg.attendanceGistId, ATT_FILE).catch(() => ({ records: [] }));
   const today  = todayStr();
   const others = (data.records || []).filter(r => r.date !== today);
+  // IP guard for check-out: block if a *different* employee already checked out from this device
+  if (clientIP) {
+    const emp = getEmp();
+    const sameIPOut = others.length === 0
+      ? data.records.find(r => r.date === today && r.deviceIP === clientIP && r.checkOut && emp && r.employeeId !== emp.id)
+      : null;
+    // Check within today's Gist records (before our local merge)
+    const todayGist = (data.records || []).filter(r => r.date === today);
+    const ipOutConflict = todayGist.find(r => r.deviceIP === clientIP && r.checkOut && emp && r.employeeId !== emp.id);
+    if (ipOutConflict) throw new Error('Another employee (' + ipOutConflict.name + ') has already checked out from this device today');
+  }
   data.records  = [...others, ...todayRecs];
   await gistPatch(cfg.attendanceGistId, ATT_FILE, data);
 }
