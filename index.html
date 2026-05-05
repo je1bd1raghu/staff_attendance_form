@@ -370,7 +370,7 @@ async function attPatch(records) {
   const csvContent = csvStringify(records);
   const body = { files: {} };
   body.files[ATT_FILE] = { content: csvContent };
-  const r = await fetch(WORKER_URL, {
+  const r = await fetch(WORKER_URL + cfg.attendanceGistId, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
