@@ -230,6 +230,7 @@
   <div style="height:24px"></div>
 </div>
 
+<script src="libs/fp.min.js"></script>
 <script>
 const GIST_API    = 'https://api.github.com/gists/';
 const GIST_RAW    = 'https://gist.githubusercontent.com/je1bd1raghu/';
@@ -251,7 +252,7 @@ let currentPos  = null;
 let locVerified = false;
 let locName     = '';
 let watchId     = null;
-let clientIP    = null;   // fetched once on load — cross-browser device fingerprint
+let deviceId    = null;   // stable device fingerprint via FingerprintJS (fp.min.js)
 
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
@@ -261,19 +262,19 @@ window.addEventListener('DOMContentLoaded', () => {
   initApp();
 });
 
-async function fetchClientIP() {
+async function getDeviceId() {
   try {
-    const r = await fetch('https://api.ipify.org?format=json');
-    const j = await r.json();
-    clientIP = j.ip || null;
-  } catch(e) { clientIP = null; }
+    const fp     = await FingerprintJS.load();
+    const result = await fp.get();
+    deviceId = result.visitorId;
+  } catch(e) { deviceId = null; }
 }
 
 async function initApp() {
   setProgress(10);
   updateBar(true);
   setLoadText('Loading employees…');
-  await fetchClientIP();   // get public IP before anything else
+  await getDeviceId();   // stable device fingerprint — replaces IP-based tracking
   setProgress(40);
   const ok = await fetchConfig();
   if (!ok) { hideLoading(); return; }
@@ -321,7 +322,7 @@ function updateBar(connected) {
 // Reads use public raw URL — no token needed, no exposure risk
 // ── CSV HELPERS ───────────────────────────────────────────────────────────────
 const CSV_COLS = ['employeeId','name','designation','date','checkIn','checkInTimestamp',
-                  'checkOut','checkOutTimestamp','location','lat','lng','deviceIP'];
+                  'checkOut','checkOutTimestamp','location','lat','lng','deviceId'];
 
 function csvEscape(v) {
   const s = v == null ? '' : String(v);
@@ -604,9 +605,10 @@ async function doCheckIn() {
   if (!locVerified) { showToast('Location not verified', 'error'); return; }
   const emp = getEmp(); if (!emp) return;
   const now = new Date();
-  const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '', date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceIP: clientIP };
+  const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '', date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceId: deviceId };
   await withBtnLoad('btnIn', async () => {
     await appendRecord(rec);
+    markDeviceIn();
     todayRecs.push(rec);
     renderRecords(); updateBtns();
     showToast('✅ Checked IN at ' + rec.checkIn, 'success');
@@ -622,6 +624,7 @@ async function doCheckOut() {
   rec.checkOut = timeStr(now); rec.checkOutTimestamp = now.toISOString();
   await withBtnLoad('btnOut', async () => {
     await saveAll();
+    markDeviceOut();
     renderRecords(); updateBtns();
     showToast('🚪 Checked OUT at ' + rec.checkOut, 'success');
   });
@@ -656,10 +659,10 @@ function markDeviceOut()    { const l = getDeviceLog(); l.checkedOut = true; sav
 // ── RECORD OPS ────────────────────────────────────────────────────────────────
 async function appendRecord(rec) {
   const records = await attGet().catch(() => []);
-  // IP guard: block if any employee already checked in from this device today
-  if (rec.deviceIP) {
-    const sameIP = records.find(r => r.date === rec.date && r.deviceIP === rec.deviceIP && r.checkIn);
-    if (sameIP) throw new Error('Another employee (' + sameIP.name + ') has already checked in from this device today');
+  // Device guard: block if any employee already checked in from this device today
+  if (rec.deviceId) {
+    const sameDev = records.find(r => r.date === rec.date && r.deviceId === rec.deviceId && r.checkIn);
+    if (sameDev) throw new Error('Another employee (' + sameDev.name + ') has already checked in from this device today');
   }
   // Employee guard: reject if this employee already has a record today
   const already = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date);
@@ -672,12 +675,12 @@ async function saveAll() {
   const allRecs = await attGet().catch(() => []);
   const today   = todayStr();
   const others  = allRecs.filter(r => r.date !== today);
-  // IP guard for check-out: block if a *different* employee already checked out from this device
-  if (clientIP) {
+  // Device guard for check-out: block if a *different* employee already checked out from this device
+  if (deviceId) {
     const emp = getEmp();
     const todayGist = allRecs.filter(r => r.date === today);
-    const ipOutConflict = todayGist.find(r => r.deviceIP === clientIP && r.checkOut && emp && r.employeeId !== emp.id);
-    if (ipOutConflict) throw new Error('Another employee (' + ipOutConflict.name + ') has already checked out from this device today');
+    const devOutConflict = todayGist.find(r => r.deviceId === deviceId && r.checkOut && emp && r.employeeId !== emp.id);
+    if (devOutConflict) throw new Error('Another employee (' + devOutConflict.name + ') has already checked out from this device today');
   }
   await attPatch([...others, ...todayRecs]);
 }
