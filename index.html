@@ -187,8 +187,8 @@
   .pin-icon { font-size: 48px; margin-bottom: 12px; }
   .pin-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
   .pin-sub { font-size: 14px; color: var(--text2); margin-bottom: 28px; }
-  .pin-dots { display: flex; justify-content: center; gap: 14px; margin-bottom: 28px; }
-  .pin-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); background: white; transition: all 0.15s; }
+  .pin-dots { display: flex; justify-content: center; gap: 10px; margin-bottom: 28px; min-height: 20px; flex-wrap: wrap; }
+  .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); background: white; transition: all 0.15s; flex-shrink: 0; }
   .pin-dot.filled { background: var(--admin); border-color: var(--admin); }
   .pin-dot.error  { background: var(--danger); border-color: var(--danger); }
   .pin-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
@@ -196,6 +196,7 @@
   .pin-key:active { background: var(--surface2); transform: scale(0.95); }
   .pin-key.del { font-size: 18px; color: var(--danger); }
   .pin-key.cancel { font-size: 15px; color: var(--text3); grid-column: 1; }
+  .pin-key.submit { font-size: 20px; color: white; background: var(--admin); border-color: var(--admin); }
 
   /* QR print page */
   .qr-print-overlay { position: fixed; inset: 0; background: white; z-index: 500; overflow-y: auto; display: none; }
@@ -242,13 +243,8 @@
   <div class="pin-box">
     <div class="pin-icon">🔐</div>
     <div class="pin-title">Admin Access</div>
-    <div class="pin-sub">Enter your 4-digit PIN to continue</div>
-    <div class="pin-dots" id="pinDots">
-      <div class="pin-dot" id="pd0"></div>
-      <div class="pin-dot" id="pd1"></div>
-      <div class="pin-dot" id="pd2"></div>
-      <div class="pin-dot" id="pd3"></div>
-    </div>
+    <div class="pin-sub">Enter your PIN to continue</div>
+    <div class="pin-dots" id="pinDots"></div>
     <div class="pin-keypad" id="pinKeypad">
       <button class="pin-key" onclick="pinKey('1')">1</button>
       <button class="pin-key" onclick="pinKey('2')">2</button>
@@ -263,6 +259,7 @@
       <button class="pin-key" onclick="pinKey('0')">0</button>
       <button class="pin-key del" onclick="pinDel()">⌫</button>
     </div>
+    <button class="btn-save" id="pinSubmit" onclick="submitPin()" disabled style="margin-top:16px;border-radius:14px;padding:16px;font-size:18px;background:var(--admin)">✓ Confirm PIN</button>
   </div>
 </div>
 
@@ -894,40 +891,54 @@ function handleAdminBtn() {
 function openPinOverlay() {
   pinBuffer = '';
   renderPinDots();
+  document.getElementById('pinSubmit').disabled = true;
   document.getElementById('pinOverlay').classList.add('open');
 }
 
 function closePinOverlay() {
   pinBuffer = '';
   renderPinDots();
+  document.getElementById('pinSubmit').disabled = true;
   document.getElementById('pinOverlay').classList.remove('open');
 }
 
 function pinKey(d) {
-  if (pinBuffer.length >= 4) return;
+  if (pinBuffer.length >= 20) return;  // reasonable max, not enforced server-side
   pinBuffer += d;
   renderPinDots();
-  if (pinBuffer.length === 4) {
-    setTimeout(checkPin, 150);
-  }
+  document.getElementById('pinSubmit').disabled = pinBuffer.length === 0;
 }
 
 function pinDel() {
   pinBuffer = pinBuffer.slice(0, -1);
   renderPinDots();
+  document.getElementById('pinSubmit').disabled = pinBuffer.length === 0;
 }
 
 function renderPinDots(error) {
-  for (let i = 0; i < 4; i++) {
-    const dot = document.getElementById('pd' + i);
-    dot.className = 'pin-dot' + (i < pinBuffer.length ? (error ? ' error' : ' filled') : '');
+  const container = document.getElementById('pinDots');
+  container.innerHTML = '';
+  const len = Math.max(pinBuffer.length, 1);  // always show at least 1 dot placeholder
+  for (let i = 0; i < pinBuffer.length; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'pin-dot' + (error ? ' error' : ' filled');
+    container.appendChild(dot);
+  }
+  // Show empty placeholder dots (minimum 4 for visual balance when buffer is short)
+  const empties = Math.max(0, 4 - pinBuffer.length);
+  for (let i = 0; i < empties; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'pin-dot' + (error ? ' error' : '');
+    container.appendChild(dot);
   }
 }
 
-function checkPin() {
+function submitPin() {
   const pin = pinBuffer;
   // Disable keypad while verifying
   document.getElementById('pinKeypad').style.pointerEvents = 'none';
+  document.getElementById('pinSubmit').disabled = true;
+  document.getElementById('pinSubmit').textContent = '…';
   fetch(WORKER_URL + 'verify-pin', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -936,20 +947,22 @@ function checkPin() {
   .then(r => r.json().then(data => ({ ok: r.ok, data })))
   .then(({ ok, data }) => {
     document.getElementById('pinKeypad').style.pointerEvents = '';
+    document.getElementById('pinSubmit').textContent = '✓ Confirm PIN';
     if (ok) {
       verifiedPin = pin;   // keep in memory for this session's admin writes
       closePinOverlay();
       enterAdmin();
     } else {
       renderPinDots(true);
-      setTimeout(() => { pinBuffer = ''; renderPinDots(); }, 700);
+      setTimeout(() => { pinBuffer = ''; renderPinDots(); document.getElementById('pinSubmit').disabled = true; }, 700);
       showToast(data.error || 'Incorrect PIN', 'error');
     }
   })
   .catch(() => {
     document.getElementById('pinKeypad').style.pointerEvents = '';
+    document.getElementById('pinSubmit').textContent = '✓ Confirm PIN';
     renderPinDots(true);
-    setTimeout(() => { pinBuffer = ''; renderPinDots(); }, 700);
+    setTimeout(() => { pinBuffer = ''; renderPinDots(); document.getElementById('pinSubmit').disabled = true; }, 700);
     showToast('Network error — could not verify PIN', 'error');
   });
 }
