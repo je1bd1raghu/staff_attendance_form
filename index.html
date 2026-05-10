@@ -29,15 +29,19 @@
     --radius-sm: 10px;
     --shadow: 0 2px 12px rgba(0,0,0,0.07);
     --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+    --admin: #7C3AED;
+    --admin-light: #F5F3FF;
   }
   body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
   .header { background: var(--primary); color: white; padding: 20px 20px 60px; text-align: center; position: relative; }
   .header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
   .header p  { font-size: 12px; opacity: 0.8; margin-top: 2px; }
-  .header-right { position: absolute; right: 16px; top: 20px; }
+  .header-right { position: absolute; right: 16px; top: 20px; display: flex; gap: 8px; }
   .icon-btn { background: rgba(255,255,255,0.2); border: none; border-radius: 10px; color: white; width: 38px; height: 38px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .icon-btn.admin-active { background: rgba(255,255,255,0.9); color: var(--admin); }
   .card-wrapper { padding: 0 16px; margin-top: -40px; position: relative; z-index: 10; }
   .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 24px; margin-bottom: 16px; }
+  .card.admin-card { border: 2px solid var(--admin); }
   .datetime-bar { display: flex; justify-content: space-between; align-items: center; background: var(--surface2); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 20px; }
   .dt-block { text-align: center; }
   .dt-label { font-size: 11px; color: var(--text3); font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
@@ -99,6 +103,7 @@
   .chip-in  { background: var(--success-light); color: var(--success); }
   .chip-out { background: var(--danger-light);  color: var(--danger); }
   .chip-pending { background: var(--warning-light); color: var(--warning); }
+  .chip-admin { background: var(--admin-light); color: var(--admin); font-size: 10px; }
   .empty-state { text-align: center; padding: 28px 0; color: var(--text3); font-weight: 700; font-size: 14px; }
   .empty-state .e-icon { font-size: 36px; margin-bottom: 8px; }
   .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--text); color: white; padding: 14px 24px; border-radius: 50px; font-size: 14px; font-weight: 700; z-index: 9999; transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1); white-space: nowrap; max-width: 88vw; text-align: center; }
@@ -126,9 +131,6 @@
   .dot-ok   { background: var(--success); }
   .dot-warn { background: var(--warning); }
   .dot-err  { background: var(--danger); }
-  .config-bar { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 16px; box-shadow: var(--shadow); }
-  .cfg-text { font-size: 13px; font-weight: 700; color: var(--text2); }
-  .cfg-link { font-size: 12px; color: var(--primary); font-weight: 700; cursor: pointer; text-decoration: underline; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner { display: inline-block; width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.35); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
   .loading-screen { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; gap: 14px; transition: opacity 0.4s; }
@@ -138,6 +140,89 @@
   .bar-track { width: 160px; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
   .bar-fill  { height: 100%; background: var(--primary); border-radius: 3px; width: 0%; transition: width 0.5s; }
   pre { background: var(--surface2); border-radius: 10px; padding: 14px; font-size: 11px; overflow-x: auto; line-height: 1.7; color: var(--text); font-family: monospace; white-space: pre-wrap; word-break: break-all; }
+
+  /* ── ADMIN MODE STYLES ────────────────────────────────────────────────────── */
+  .admin-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--admin-light); color: var(--admin); border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 800; margin-bottom: 16px; }
+  .admin-banner { background: linear-gradient(135deg, var(--admin) 0%, #5B21B6 100%); color: white; border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+  .admin-banner-icon { font-size: 28px; }
+  .admin-banner-title { font-size: 16px; font-weight: 800; }
+  .admin-banner-sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+
+  /* QR scanner */
+  .qr-scanner-wrap { position: relative; border-radius: var(--radius-sm); overflow: hidden; background: #000; margin-bottom: 16px; }
+  #qrVideo { width: 100%; display: block; max-height: 280px; object-fit: cover; }
+  .qr-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .qr-frame { width: 180px; height: 180px; border: 3px solid rgba(255,255,255,0.8); border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); position: relative; }
+  .qr-frame::before, .qr-frame::after { content: ''; position: absolute; width: 28px; height: 28px; border-color: #fff; border-style: solid; }
+  .qr-frame::before { top: -3px; left: -3px; border-width: 4px 0 0 4px; border-radius: 12px 0 0 0; }
+  .qr-frame::after  { bottom: -3px; right: -3px; border-width: 0 4px 4px 0; border-radius: 0 0 12px 0; }
+  @keyframes scan { 0%,100%{ top:10%; } 50%{ top:80%; } }
+  .qr-scan-line { position: absolute; left: 8%; right: 8%; height: 2px; background: linear-gradient(90deg, transparent, #7C3AED, transparent); border-radius: 1px; top: 10%; animation: scan 2s ease-in-out infinite; }
+  .qr-scan-status { text-align: center; font-size: 14px; font-weight: 700; color: var(--text2); padding: 10px 0 4px; }
+
+  /* Admin location picker */
+  .admin-loc-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .loc-pill { padding: 8px 14px; border: 2px solid var(--border); border-radius: 50px; font-size: 13px; font-weight: 700; cursor: pointer; color: var(--text2); transition: all 0.15s; background: white; }
+  .loc-pill:hover { border-color: var(--admin); color: var(--admin); }
+  .loc-pill.selected { border-color: var(--admin); background: var(--admin); color: white; }
+
+  /* Scanned employee preview */
+  .scan-preview { background: var(--surface2); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 16px; display: none; }
+  .scan-preview.visible { display: flex; align-items: center; gap: 14px; }
+  .scan-avatar { width: 52px; height: 52px; border-radius: 14px; background: var(--admin-light); color: var(--admin); font-size: 18px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .scan-info { flex: 1; }
+  .scan-name { font-size: 17px; font-weight: 800; color: var(--text); }
+  .scan-desig { font-size: 12px; color: var(--admin); font-weight: 700; margin-top: 2px; }
+  .scan-state { font-size: 12px; color: var(--text3); font-weight: 600; margin-top: 3px; }
+  .scan-action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+  .btn-scan-in  { padding: 16px; border: none; border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 800; cursor: pointer; background: var(--success); color: white; transition: opacity 0.15s; }
+  .btn-scan-out { padding: 16px; border: none; border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 800; cursor: pointer; background: var(--danger);  color: white; transition: opacity 0.15s; }
+  .btn-scan-in:disabled, .btn-scan-out:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-rescan { width: 100%; padding: 14px; border: 2px solid var(--admin); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 800; cursor: pointer; background: white; color: var(--admin); }
+
+  /* Admin PIN overlay */
+  .pin-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.75); z-index: 300; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+  .pin-overlay.open { opacity: 1; pointer-events: all; }
+  .pin-box { background: white; border-radius: 24px; padding: 32px 28px; width: min(380px, 92vw); text-align: center; }
+  .pin-icon { font-size: 48px; margin-bottom: 12px; }
+  .pin-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+  .pin-sub { font-size: 14px; color: var(--text2); margin-bottom: 28px; }
+  .pin-dots { display: flex; justify-content: center; gap: 14px; margin-bottom: 28px; }
+  .pin-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); background: white; transition: all 0.15s; }
+  .pin-dot.filled { background: var(--admin); border-color: var(--admin); }
+  .pin-dot.error  { background: var(--danger); border-color: var(--danger); }
+  .pin-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .pin-key { padding: 20px 10px; border: 2px solid var(--border); border-radius: 14px; font-family: 'Nunito', sans-serif; font-size: 22px; font-weight: 800; cursor: pointer; background: white; color: var(--text); transition: all 0.12s; }
+  .pin-key:active { background: var(--surface2); transform: scale(0.95); }
+  .pin-key.del { font-size: 18px; color: var(--danger); }
+  .pin-key.cancel { font-size: 15px; color: var(--text3); grid-column: 1; }
+
+  /* QR print page */
+  .qr-print-overlay { position: fixed; inset: 0; background: white; z-index: 500; overflow-y: auto; display: none; }
+  .qr-print-overlay.open { display: block; }
+  .qr-print-header { background: var(--primary); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .qr-print-header h2 { font-size: 18px; font-weight: 800; }
+  .qr-print-header button { background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 8px; padding: 8px 16px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .qr-print-body { padding: 16px; }
+  .qr-search-bar { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 15px; margin-bottom: 16px; outline: none; }
+  .qr-search-bar:focus { border-color: var(--primary); }
+  .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+  .qr-card { border: 2px solid var(--border); border-radius: 12px; padding: 20px 16px; text-align: center; cursor: pointer; transition: border-color 0.15s; }
+  .qr-card:hover { border-color: var(--primary); }
+  .qr-card canvas { display: block; margin: 0 auto 10px; border-radius: 8px; }
+  .qr-card-name { font-size: 13px; font-weight: 800; color: var(--text); line-height: 1.3; }
+  .qr-card-desig { font-size: 11px; color: var(--text3); font-weight: 600; margin-top: 3px; line-height: 1.3; }
+  .qr-card-id { font-size: 10px; color: var(--primary); font-weight: 700; margin-top: 4px; font-family: monospace; }
+  .btn-print-all { width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 800; cursor: pointer; margin-bottom: 16px; }
+  @media print {
+    .qr-print-header { display: none; }
+    .qr-search-bar, .btn-print-all { display: none; }
+    .qr-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .qr-card { break-inside: avoid; }
+  }
+
+  /* Admin exit btn */
+  .btn-exit-admin { width: 100%; padding: 14px; border: 2px solid var(--danger); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 800; cursor: pointer; background: white; color: var(--danger); margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -149,25 +234,63 @@
   <div class="bar-track"><div class="bar-fill" id="loadingBar"></div></div>
 </div>
 
-<!-- Setup overlay removed - config is hardcoded -->
-
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<!-- HEADER -->
-<div class="header">
-  <p id="headerDate">Loading…</p>
-  <h1>Staff Attendance</h1>
-  <div class="header-right"></div>
+<!-- ADMIN PIN OVERLAY -->
+<div class="pin-overlay" id="pinOverlay">
+  <div class="pin-box">
+    <div class="pin-icon">🔐</div>
+    <div class="pin-title">Admin Access</div>
+    <div class="pin-sub">Enter your 4-digit PIN to continue</div>
+    <div class="pin-dots" id="pinDots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-keypad" id="pinKeypad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key cancel" onclick="closePinOverlay()">✕</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key del" onclick="pinDel()">⌫</button>
+    </div>
+  </div>
 </div>
 
-<!-- MAIN -->
-<div class="card-wrapper">
+<!-- QR PRINT OVERLAY -->
+<div class="qr-print-overlay" id="qrPrintOverlay">
+  <div class="qr-print-header">
+    <h2>🖨️ Employee QR Codes</h2>
+    <button onclick="closeQrPrint()">✕ Close</button>
+  </div>
+  <div class="qr-print-body">
+    <button class="btn-print-all" onclick="window.print()">🖨️ Print All QR Codes</button>
+    <input type="text" class="qr-search-bar" id="qrSearchInput" placeholder="🔍  Search employee…" oninput="filterQrGrid()">
+    <div class="qr-grid" id="qrGrid"></div>
+  </div>
+</div>
 
-  <!-- config bar removed -->
+<!-- HEADER -->
+<div class="header" id="mainHeader">
+  <p id="headerDate">Loading…</p>
+  <h1>Staff Attendance</h1>
+  <div class="header-right">
+    <button class="icon-btn" id="adminBtn" title="Admin mode" onclick="handleAdminBtn()">🛡️</button>
+  </div>
+</div>
 
+<!-- MAIN (employee mode) -->
+<div class="card-wrapper" id="employeeView">
   <div class="card">
-    <!-- DATE / TIME BAR -->
     <div class="datetime-bar">
       <div class="dt-block">
         <div class="dt-label">Date</div>
@@ -196,7 +319,6 @@
       </div>
       <div class="combo-dropdown" id="comboDropdown" style="display:none"></div>
     </div>
-    <!-- hidden select keeps getEmp() / updateBtns() working unchanged -->
     <select id="empSelect" style="display:none"></select>
 
     <!-- LOCATION STATUS -->
@@ -226,23 +348,93 @@
       <div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>
     </div>
   </div>
-
   <div style="height:24px"></div>
 </div>
 
+<!-- ADMIN VIEW -->
+<div class="card-wrapper" id="adminView" style="display:none">
+  <div class="card admin-card">
+    <!-- Admin banner -->
+    <div class="admin-banner">
+      <div class="admin-banner-icon">🛡️</div>
+      <div>
+        <div class="admin-banner-title">Admin Mode Active</div>
+        <div class="admin-banner-sub">Scan employee QR code to mark attendance</div>
+      </div>
+    </div>
+
+    <!-- Location picker -->
+    <div class="field-label">Select Duty Location</div>
+    <div class="admin-loc-pills" id="adminLocPills"></div>
+
+    <!-- QR scanner -->
+    <div class="field-label">Scan Employee QR Code</div>
+    <div class="qr-scanner-wrap">
+      <video id="qrVideo" autoplay playsinline muted></video>
+      <div class="qr-overlay">
+        <div class="qr-frame">
+          <div class="qr-scan-line"></div>
+        </div>
+      </div>
+    </div>
+    <div class="qr-scan-status" id="qrScanStatus">📷 Point camera at QR code</div>
+
+    <!-- Scanned employee preview -->
+    <div class="scan-preview" id="scanPreview">
+      <div class="scan-avatar" id="scanAvatar"></div>
+      <div class="scan-info">
+        <div class="scan-name" id="scanName"></div>
+        <div class="scan-desig" id="scanDesig"></div>
+        <div class="scan-state" id="scanState"></div>
+      </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="scan-action-row" id="scanActionRow" style="display:none">
+      <button class="btn-scan-in"  id="btnScanIn"  onclick="adminDoIn()">✅ Check IN</button>
+      <button class="btn-scan-out" id="btnScanOut" onclick="adminDoOut()">🚪 Check OUT</button>
+    </div>
+    <button class="btn-rescan" id="btnRescan" style="display:none" onclick="resumeScanner()">↩ Scan Another</button>
+  </div>
+
+  <!-- QR Print card -->
+  <div class="card">
+    <div class="section-title">QR Code Management</div>
+    <p style="font-size:13px;color:var(--text2);font-weight:600;margin-bottom:14px;line-height:1.6;">Print QR codes for employees who don't have a smartphone. Give them their personal QR card — admin scans it to mark attendance.</p>
+    <button class="btn-save" onclick="openQrPrint()" style="background:var(--admin)">🖨️ Print Employee QR Codes</button>
+  </div>
+
+  <!-- Today's records (admin view) -->
+  <div class="card">
+    <div class="section-title">Today's Attendance</div>
+    <div id="adminRecordsList">
+      <div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>
+    </div>
+  </div>
+
+  <button class="btn-exit-admin" style="margin: 0 0 32px" onclick="exitAdmin()">✕ Exit Admin Mode</button>
+</div>
+
 <script src="libs/fp.min.js"></script>
+<!-- QR code generation -->
+<script src="libs/qrcode.min.js"></script>
+<!-- QR code reading -->
+<script src="libs/jsQR.js"></script>
+
 <script>
 const GIST_API    = 'https://api.github.com/gists/';
 const GIST_RAW    = 'https://gist.githubusercontent.com/je1bd1raghu/';
 const CONFIG_FILE = 'config.json';
 const ATT_FILE    = 'attendance.csv';
-const WORKER_URL = 'https://attendance-proxy.je1-bd1-raghu.workers.dev/';
+const WORKER_URL  = 'https://attendance-proxy.je1-bd1-raghu.workers.dev/';
 
-// ── HARDCODED CONFIG (not user-editable) ──────────────────────────────────────
+// ── HARDCODED CONFIG ──────────────────────────────────────────────────────────
 const cfg = Object.freeze({
   token:            atob('Z2hwX1NUMk9mMlh1bjdYTnFtOTJhQW5pQUl6Z2oyMnNweTE2eE1kUQ=='),
   configGistId:     atob('OTMyNjYwMTBiMjNmM2Y5ZmRjMjIzMGFjZDU2ZWJjOTI='),
-  attendanceGistId: atob('NmIxYWE4ZjFmYjQ1NmQ5M2Y2MDNjNWFiNTQ5MzFiYzY=')
+  attendanceGistId: atob('NmIxYWE4ZjFmYjQ1NmQ5M2Y2MDNjNWFiNTQ5MzFiYzY='),
+  // Admin PINs — comma-separated, e.g. "1234,5678". Override in config.json via adminPins field.
+  defaultPins: ['1234', '0000']
 });
 
 let employees   = [];
@@ -252,13 +444,21 @@ let currentPos  = null;
 let locVerified = false;
 let locName     = '';
 let watchId     = null;
-let deviceId    = null;   // stable device fingerprint via FingerprintJS (fp.min.js)
+let deviceId    = null;
+let adminPins   = cfg.defaultPins;  // overridden by config.json if adminPins field present
+
+// ── ADMIN STATE ───────────────────────────────────────────────────────────────
+let isAdmin          = false;
+let adminLocId       = null;    // selected location id in admin mode
+let scannedEmpId     = null;    // EMP id from last scan
+let scannerStream    = null;
+let scannerAnimFrame = null;
+let scannerPaused    = false;
 
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   updateClock();
   setInterval(updateClock, 1000);
-  populateTemplate();
   initApp();
 });
 
@@ -274,7 +474,7 @@ async function initApp() {
   setProgress(10);
   updateBar(true);
   setLoadText('Loading employees…');
-  await getDeviceId();   // stable device fingerprint — replaces IP-based tracking
+  await getDeviceId();
   setProgress(40);
   const ok = await fetchConfig();
   if (!ok) { hideLoading(); return; }
@@ -308,19 +508,10 @@ function updateClock() {
 }
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
-// ── STORAGE ───────────────────────────────────────────────────────────────────
-function updateBar(connected) {
-  const dot   = document.getElementById('cfgDot');
-  const label = document.getElementById('cfgLabel');
-  const link  = document.getElementById('cfgSetupLink');
-  if (dot)   dot.className = 'status-dot ' + (connected ? 'dot-ok' : 'dot-warn');
-  if (label) label.textContent = connected ? 'Connected to GitHub Gist' : 'Connecting…';
-  if (link)  link.style.display = 'none';
-}
+// ── STORAGE BAR ───────────────────────────────────────────────────────────────
+function updateBar(connected) {}
 
-// ── GIST API ──────────────────────────────────────────────────────────────────
-// Reads use public raw URL — no token needed, no exposure risk
-// ── CSV HELPERS ───────────────────────────────────────────────────────────────
+// ── GIST / CSV ────────────────────────────────────────────────────────────────
 const CSV_COLS = ['employeeId','name','designation','date','checkIn','checkInTimestamp',
                   'checkOut','checkOutTimestamp','location','lat','lng','deviceId'];
 
@@ -329,13 +520,11 @@ function csvEscape(v) {
   return (s.includes(',') || s.includes('"') || s.includes('\n'))
     ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
-
 function csvStringify(records) {
   const header = CSV_COLS.join(',');
   const rows   = records.map(r => CSV_COLS.map(c => csvEscape(r[c])).join(','));
   return [header, ...rows].join('\n');
 }
-
 function csvParse(text) {
   if (!text || !text.trim()) return [];
   const lines = text.trim().split('\n');
@@ -359,7 +548,6 @@ function csvParse(text) {
   });
 }
 
-// Attendance-specific read/write (CSV format)
 async function attGet() {
   const url = GIST_RAW + cfg.attendanceGistId + '/raw/' + ATT_FILE + '?t=' + Date.now();
   const r   = await fetch(url);
@@ -386,24 +574,14 @@ async function gistRawGet(gistId, filename) {
   return r.json();
 }
 
-// Writes use authenticated API — token used only here
-async function gistPatch(id, filename, content) {
-  const body = { files: {} };
-  body.files[filename] = { content: JSON.stringify(content, null, 2) };
-  const r = await fetch(GIST_API + id, {
-    method: 'PATCH',
-    headers: { Authorization: 'token ' + cfg.token, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  if (!r.ok) throw new Error('HTTP ' + r.status + ' saving to Gist');
-}
-
 async function fetchConfig() {
   try {
     const data = await gistRawGet(cfg.configGistId, CONFIG_FILE);
     employees  = data.employees || [];
     locations  = data.locations  || [];
+    if (data.adminPins && Array.isArray(data.adminPins)) adminPins = data.adminPins;
     populateEmployees();
+    populateAdminLocs();
     return true;
   } catch(e) { showToast('Config error: ' + e.message, 'error'); return false; }
 }
@@ -413,13 +591,13 @@ async function fetchTodayRecords() {
     const records = await attGet();
     todayRecs     = records.filter(r => r.date === todayStr());
     renderRecords();
-  } catch { todayRecs = []; renderRecords(); }
+    renderAdminRecords();
+  } catch { todayRecs = []; renderRecords(); renderAdminRecords(); }
 }
 
-// ── EMPLOYEES ─────────────────────────────────────────────────────────────────────────────
+// ── EMPLOYEES ─────────────────────────────────────────────────────────────────
 function populateEmployees() {
   employees.sort((a, b) => a.name.localeCompare(b.name));
-  // Sync hidden select so getEmp() / updateBtns() keep working unchanged
   const sel = document.getElementById('empSelect');
   sel.innerHTML = '<option value=""></option>';
   employees.forEach(e => {
@@ -431,7 +609,6 @@ function populateEmployees() {
 }
 
 function esc(s) { return String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
-
 function hi(s, q) {
   if (!q) return esc(s);
   try {
@@ -463,12 +640,10 @@ function openDropdown() {
   document.getElementById('comboDropdown').style.display = 'block';
   document.getElementById('comboWrapper').classList.add('open');
 }
-
 function closeDropdown() {
   document.getElementById('comboDropdown').style.display = 'none';
   document.getElementById('comboWrapper').classList.remove('open');
 }
-
 function selectEmployee(id) {
   const emp = employees.find(e => e.id === id);
   if (!emp) return;
@@ -477,77 +652,61 @@ function selectEmployee(id) {
   document.getElementById('empSelect').value = id;
   closeDropdown(); onEmployeeChange();
 }
-
 function clearEmployee() {
   document.getElementById('empSearch').value = '';
   document.getElementById('comboClear').style.display = 'none';
   document.getElementById('empSelect').value = '';
   renderDropdown(''); resetLoc(); disableBtns();
 }
-
-// Delegated click on dropdown items (avoids inline onclick / quoting issues)
 document.getElementById('comboDropdown').addEventListener('mousedown', function(e) {
   const item = e.target.closest('.combo-item');
   if (item) { e.preventDefault(); selectEmployee(item.dataset.id); }
 });
-
-// Close when clicking outside the combobox
 document.addEventListener('click', function(e) {
   const w = document.getElementById('comboWrapper');
   if (w && !w.contains(e.target)) closeDropdown();
 });
-
 function onEmployeeChange() {
   resetLoc(); disableBtns();
   const id = document.getElementById('empSelect').value;
   if (!id) return;
-  ensureWatch();           // starts ONE watch for the whole session
-  if (currentPos) checkProximity();  // re-use cached position immediately
+  ensureWatch();
+  if (currentPos) checkProximity();
 }
 
 // ── LOCATION ──────────────────────────────────────────────────────────────────
 function ensureWatch() {
-  if (watchId !== null) return;   // already watching — do NOT re-prompt
+  if (watchId !== null) return;
   if (!navigator.geolocation) { setLoc('failed', '❌', 'GPS not supported', 'Use Chrome or Safari'); return; }
   setLoc('checking', '📡', 'Getting your location…', 'Please hold still');
   watchId = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
 }
-
 function onPos(pos) {
   currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
   checkProximity();
 }
-
 function onPosErr(e) {
   const msgs = { 1: 'Location permission denied — please allow GPS', 2: 'Location unavailable', 3: 'Location timed out' };
   setLoc('failed', '❌', msgs[e.code] || 'Location error', 'Enable GPS and try again');
   disableBtns();
 }
-
 function checkProximity() {
   const emp = getEmp();
   if (!emp) return;
-
-  // Filter to only this employee's assigned locations
   const allowed = emp.locationIds && emp.locationIds.length
     ? locations.filter(l => emp.locationIds.includes(l.id))
     : locations;
-
   if (!allowed.length) {
     setLoc('failed', '⚠️', 'No locations assigned', 'Contact admin to assign your duty area');
     disableBtns(); return;
   }
-
-  // Find nearest allowed location
   let best = null, bestDist = Infinity;
   allowed.forEach(loc => {
     const d = haversine(currentPos.lat, currentPos.lng, loc.lat, loc.lng);
     if (d < bestDist) { bestDist = d; best = loc; }
   });
-
   const tol  = best.tolerance || 15;
   const dist = Math.round(bestDist);
-
   if (bestDist <= tol) {
     locVerified = true; locName = best.name;
     setLoc('verified', '✅', best.name, 'You are ' + dist + 'm away — location verified ✓');
@@ -559,24 +718,20 @@ function checkProximity() {
     disableBtns();
   }
 }
-
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371000, toR = Math.PI / 180;
   const dLat = (lat2 - lat1) * toR, dLng = (lng2 - lng1) * toR;
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*toR) * Math.cos(lat2*toR) * Math.sin(dLng/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
-
 function setLoc(cls, icon, title, sub) {
   document.getElementById('locStatus').className  = 'loc-status ' + cls;
   document.getElementById('locIcon').textContent  = icon;
   document.getElementById('locTitle').textContent = title;
   document.getElementById('locSub').textContent   = sub;
 }
-
 function resetLoc() {
   locVerified = false; locName = '';
-  // Keep watchId + currentPos alive — avoids re-prompting permission on employee switch
   setLoc('idle', '📍', 'Location not checked', 'Select your name to begin');
 }
 
@@ -594,13 +749,12 @@ function updateBtns() {
   btnIn.title  = dIn  ? 'This device has already checked in today'  : '';
   btnOut.title = dOut ? 'This device has already checked out today' : '';
 }
-
 function disableBtns() {
   document.getElementById('btnIn').disabled  = true;
   document.getElementById('btnOut').disabled = true;
 }
 
-// ── ACTIONS ───────────────────────────────────────────────────────────────────
+// ── ACTIONS (employee self) ───────────────────────────────────────────────────
 async function doCheckIn() {
   if (!locVerified) { showToast('Location not verified', 'error'); return; }
   const emp = getEmp(); if (!emp) return;
@@ -614,7 +768,6 @@ async function doCheckIn() {
     showToast('✅ Checked IN at ' + rec.checkIn, 'success');
   });
 }
-
 async function doCheckOut() {
   if (!locVerified) { showToast('Location not verified', 'error'); return; }
   const emp = getEmp(); if (!emp) return;
@@ -639,9 +792,7 @@ async function withBtnLoad(id, fn) {
   btn.innerHTML = orig;
 }
 
-
-// ── DEVICE LOCK ─────────────────────────────────────────────────────────────────────────────
-// One check-in and one check-out allowed per device per calendar day.
+// ── DEVICE LOCK ───────────────────────────────────────────────────────────────
 const DEVICE_KEY = 'att_device_lock';
 function getDeviceLog() {
   try {
@@ -656,15 +807,14 @@ function deviceCheckedIn()  { return getDeviceLog().checkedIn;  }
 function deviceCheckedOut() { return getDeviceLog().checkedOut; }
 function markDeviceIn()     { const l = getDeviceLog(); l.checkedIn  = true; saveDeviceLog(l); }
 function markDeviceOut()    { const l = getDeviceLog(); l.checkedOut = true; saveDeviceLog(l); }
+
 // ── RECORD OPS ────────────────────────────────────────────────────────────────
 async function appendRecord(rec) {
   const records = await attGet().catch(() => []);
-  // Device guard: block if any employee already checked in from this device today
   if (rec.deviceId) {
     const sameDev = records.find(r => r.date === rec.date && r.deviceId === rec.deviceId && r.checkIn);
     if (sameDev) throw new Error('Another employee (' + sameDev.name + ') has already checked in from this device today');
   }
-  // Employee guard: reject if this employee already has a record today
   const already = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date);
   if (already) throw new Error(rec.name + ' already checked in today');
   records.push(rec);
@@ -675,7 +825,6 @@ async function saveAll() {
   const allRecs = await attGet().catch(() => []);
   const today   = todayStr();
   const others  = allRecs.filter(r => r.date !== today);
-  // Device guard for check-out: block if a *different* employee already checked out from this device
   if (deviceId) {
     const emp = getEmp();
     const todayGist = allRecs.filter(r => r.date === today);
@@ -685,18 +834,29 @@ async function saveAll() {
   await attPatch([...others, ...todayRecs]);
 }
 
-// ── RENDER ────────────────────────────────────────────────────────────────────
+// ── RENDER (employee view) ────────────────────────────────────────────────────
 function renderRecords() {
   const el = document.getElementById('recordsList');
   if (!todayRecs.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>'; return; }
   const sorted = [...todayRecs].sort((a,b) => (a.checkInTimestamp||'').localeCompare(b.checkInTimestamp||''));
-  el.innerHTML = sorted.map(r => {
-    const init  = r.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
-    const desig = r.designation ? `<div class="record-desig">🏷️ ${r.designation}</div>` : '';
-    const inC   = r.checkIn  ? `<span class="time-chip chip-in">▲ ${r.checkIn}</span>` : '';
-    const outC  = r.checkOut ? `<span class="time-chip chip-out">▼ ${r.checkOut}</span>` : (r.checkIn ? '<span class="time-chip chip-pending">⏳ Active</span>' : '');
-    return `<div class="record-item"><div class="record-avatar">${init}</div><div class="record-info"><div class="record-name">${r.name}</div>${desig}<div class="record-loc">📍 ${r.location||'—'}</div></div><div class="record-times">${inC}${outC}</div></div>`;
-  }).join('');
+  el.innerHTML = sorted.map(r => recordHTML(r)).join('');
+}
+
+function renderAdminRecords() {
+  const el = document.getElementById('adminRecordsList');
+  if (!el) return;
+  if (!todayRecs.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>'; return; }
+  const sorted = [...todayRecs].sort((a,b) => (a.checkInTimestamp||'').localeCompare(b.checkInTimestamp||''));
+  el.innerHTML = sorted.map(r => recordHTML(r)).join('');
+}
+
+function recordHTML(r) {
+  const init  = r.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+  const desig = r.designation ? `<div class="record-desig">🏷️ ${r.designation}</div>` : '';
+  const inC   = r.checkIn  ? `<span class="time-chip chip-in">▲ ${r.checkIn}</span>` : '';
+  const outC  = r.checkOut ? `<span class="time-chip chip-out">▼ ${r.checkOut}</span>` : (r.checkIn ? '<span class="time-chip chip-pending">⏳ Active</span>' : '');
+  const adminC= r.deviceId === 'ADMIN' ? '<span class="time-chip chip-admin">🛡️ Admin scan</span>' : '';
+  return `<div class="record-item"><div class="record-avatar">${init}</div><div class="record-info"><div class="record-name">${r.name}</div>${desig}<div class="record-loc">📍 ${r.location||'—'}</div></div><div class="record-times">${inC}${outC}${adminC}</div></div>`;
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -714,10 +874,304 @@ function showToast(msg, type='') {
   toastTmr = setTimeout(() => el.classList.remove('show'), 3400);
 }
 
-// ── SETUP (disabled — config is hardcoded) ────────────────────────────────────
-function openSetup()  { /* disabled */ }
-function saveConfig() { /* disabled */ }
-function populateTemplate() { /* disabled */ }
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ADMIN MODE ────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── PIN ───────────────────────────────────────────────────────────────────────
+let pinBuffer = '';
+
+function handleAdminBtn() {
+  if (isAdmin) { exitAdmin(); return; }
+  openPinOverlay();
+}
+
+function openPinOverlay() {
+  pinBuffer = '';
+  renderPinDots();
+  document.getElementById('pinOverlay').classList.add('open');
+}
+
+function closePinOverlay() {
+  pinBuffer = '';
+  renderPinDots();
+  document.getElementById('pinOverlay').classList.remove('open');
+}
+
+function pinKey(d) {
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += d;
+  renderPinDots();
+  if (pinBuffer.length === 4) {
+    setTimeout(checkPin, 150);
+  }
+}
+
+function pinDel() {
+  pinBuffer = pinBuffer.slice(0, -1);
+  renderPinDots();
+}
+
+function renderPinDots(error) {
+  for (let i = 0; i < 4; i++) {
+    const dot = document.getElementById('pd' + i);
+    dot.className = 'pin-dot' + (i < pinBuffer.length ? (error ? ' error' : ' filled') : '');
+  }
+}
+
+function checkPin() {
+  if (adminPins.includes(pinBuffer)) {
+    closePinOverlay();
+    enterAdmin();
+  } else {
+    renderPinDots(true);
+    setTimeout(() => { pinBuffer = ''; renderPinDots(); }, 700);
+    showToast('Incorrect PIN', 'error');
+  }
+}
+
+// ── ENTER / EXIT ADMIN ────────────────────────────────────────────────────────
+function enterAdmin() {
+  isAdmin = true;
+  document.getElementById('employeeView').style.display = 'none';
+  document.getElementById('adminView').style.display    = 'block';
+  document.getElementById('adminBtn').classList.add('admin-active');
+  renderAdminRecords();
+  startScanner();
+}
+
+function exitAdmin() {
+  isAdmin = false;
+  stopScanner();
+  scannedEmpId = null;
+  document.getElementById('adminView').style.display    = 'none';
+  document.getElementById('employeeView').style.display = 'block';
+  document.getElementById('adminBtn').classList.remove('admin-active');
+}
+
+// ── ADMIN LOCATION PILLS ──────────────────────────────────────────────────────
+function populateAdminLocs() {
+  const container = document.getElementById('adminLocPills');
+  if (!container) return;
+  container.innerHTML = locations.map(l =>
+    `<button class="loc-pill" data-lid="${l.id}" onclick="selectAdminLoc('${l.id}')">${l.name}</button>`
+  ).join('');
+  // pre-select first
+  if (locations.length) selectAdminLoc(locations[0].id);
+}
+
+function selectAdminLoc(id) {
+  adminLocId = id;
+  document.querySelectorAll('.loc-pill').forEach(p => {
+    p.classList.toggle('selected', p.dataset.lid === id);
+  });
+}
+
+// ── QR SCANNER ────────────────────────────────────────────────────────────────
+async function startScanner() {
+  try {
+    scannerPaused = false;
+    document.getElementById('qrScanStatus').textContent = '📷 Starting camera…';
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+    });
+    scannerStream = stream;
+    const video = document.getElementById('qrVideo');
+    video.srcObject = stream;
+    await video.play();
+    document.getElementById('qrScanStatus').textContent = '📷 Point camera at QR code';
+    tickScanner();
+  } catch(e) {
+    document.getElementById('qrScanStatus').textContent = '❌ Camera error: ' + e.message;
+  }
+}
+
+function stopScanner() {
+  if (scannerAnimFrame) { cancelAnimationFrame(scannerAnimFrame); scannerAnimFrame = null; }
+  if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
+}
+
+function tickScanner() {
+  if (scannerPaused) return;
+  const video = document.getElementById('qrVideo');
+  if (!video.videoWidth) { scannerAnimFrame = requestAnimationFrame(tickScanner); return; }
+  const canvas = document.createElement('canvas');
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+  if (code && code.data) {
+    onQrDetected(code.data);
+  } else {
+    scannerAnimFrame = requestAnimationFrame(tickScanner);
+  }
+}
+
+function resumeScanner() {
+  scannerPaused = false;
+  scannedEmpId  = null;
+  document.getElementById('scanPreview').classList.remove('visible');
+  document.getElementById('scanActionRow').style.display = 'none';
+  document.getElementById('btnRescan').style.display     = 'none';
+  document.getElementById('qrScanStatus').textContent    = '📷 Point camera at QR code';
+  scannerAnimFrame = requestAnimationFrame(tickScanner);
+}
+
+function onQrDetected(data) {
+  // data should be an employee id like "EMP001"
+  const emp = employees.find(e => e.id === data.trim());
+  if (!emp) {
+    document.getElementById('qrScanStatus').textContent = '⚠️ Unknown QR: ' + data;
+    scannerAnimFrame = requestAnimationFrame(tickScanner);
+    return;
+  }
+  // Pause scanner
+  scannerPaused = true;
+  scannedEmpId  = emp.id;
+
+  // Show preview
+  const rec = todayRecs.find(r => r.employeeId === emp.id && r.date === todayStr());
+  const init = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+  document.getElementById('scanAvatar').textContent  = init;
+  document.getElementById('scanName').textContent    = emp.name;
+  document.getElementById('scanDesig').textContent   = emp.designation || '';
+  let stateText = '';
+  if (!rec)                              stateText = '⬜ Not checked in today';
+  else if (rec.checkIn && !rec.checkOut) stateText = '✅ Checked in at ' + rec.checkIn + ' · tap CHECK OUT';
+  else                                   stateText = '✔️ Fully checked out at ' + rec.checkOut;
+  document.getElementById('scanState').textContent   = stateText;
+  document.getElementById('scanPreview').classList.add('visible');
+  document.getElementById('qrScanStatus').textContent = '✅ Scanned: ' + emp.name;
+
+  // Show action buttons
+  const btnIn  = document.getElementById('btnScanIn');
+  const btnOut = document.getElementById('btnScanOut');
+  btnIn.disabled  = !(!rec);                         // enable only if not yet checked in
+  btnOut.disabled = !(rec && rec.checkIn && !rec.checkOut); // enable only if checked in but not out
+  document.getElementById('scanActionRow').style.display = 'grid';
+  document.getElementById('btnRescan').style.display     = 'block';
+}
+
+// ── ADMIN CHECK-IN / CHECK-OUT ────────────────────────────────────────────────
+async function adminDoIn() {
+  const emp = employees.find(e => e.id === scannedEmpId);
+  if (!emp) { showToast('No employee scanned', 'error'); return; }
+  if (!adminLocId) { showToast('Select a duty location first', 'warning'); return; }
+  const loc = locations.find(l => l.id === adminLocId);
+  const locLabel = loc ? loc.name : adminLocId;
+  const now = new Date();
+  const rec = {
+    employeeId: emp.id, name: emp.name, designation: emp.designation || '',
+    date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(),
+    checkOut: null, checkOutTimestamp: null,
+    location: locLabel, lat: loc ? loc.lat : '', lng: loc ? loc.lng : '',
+    deviceId: 'ADMIN'
+  };
+  document.getElementById('btnScanIn').disabled = true;
+  document.getElementById('btnScanIn').innerHTML = '<span class="spinner"></span>';
+  try {
+    const records = await attGet().catch(() => []);
+    const already = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date);
+    if (already) throw new Error(rec.name + ' already checked in today');
+    records.push(rec);
+    await attPatch(records);
+    todayRecs.push(rec);
+    renderRecords(); renderAdminRecords();
+    showToast('✅ ' + emp.name + ' checked IN', 'success');
+    document.getElementById('scanState').textContent = '✅ Checked in at ' + rec.checkIn;
+    document.getElementById('btnScanIn').disabled  = true;
+    document.getElementById('btnScanOut').disabled = false;
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+    document.getElementById('btnScanIn').disabled = false;
+  }
+  document.getElementById('btnScanIn').innerHTML = '✅ Check IN';
+}
+
+async function adminDoOut() {
+  const emp = employees.find(e => e.id === scannedEmpId);
+  if (!emp) { showToast('No employee scanned', 'error'); return; }
+  document.getElementById('btnScanOut').disabled = true;
+  document.getElementById('btnScanOut').innerHTML = '<span class="spinner"></span>';
+  try {
+    const allRecs = await attGet().catch(() => []);
+    const today   = todayStr();
+    const idx     = allRecs.findIndex(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
+    if (idx < 0) throw new Error('No active check-in found for ' + emp.name);
+    const now = new Date();
+    allRecs[idx].checkOut = timeStr(now);
+    allRecs[idx].checkOutTimestamp = now.toISOString();
+    await attPatch(allRecs);
+    // Sync local
+    const local = todayRecs.find(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
+    if (local) { local.checkOut = allRecs[idx].checkOut; local.checkOutTimestamp = allRecs[idx].checkOutTimestamp; }
+    renderRecords(); renderAdminRecords();
+    showToast('🚪 ' + emp.name + ' checked OUT', 'success');
+    document.getElementById('scanState').textContent = '✔️ Checked out at ' + allRecs[idx].checkOut;
+    document.getElementById('btnScanOut').disabled = true;
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+    document.getElementById('btnScanOut').disabled = false;
+  }
+  document.getElementById('btnScanOut').innerHTML = '🚪 Check OUT';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── QR PRINT PAGE ─────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+let qrInstances = {};
+
+function openQrPrint() {
+  document.getElementById('qrPrintOverlay').classList.add('open');
+  buildQrGrid('');
+}
+
+function closeQrPrint() {
+  document.getElementById('qrPrintOverlay').classList.remove('open');
+}
+
+function filterQrGrid() {
+  buildQrGrid(document.getElementById('qrSearchInput').value.trim().toLowerCase());
+}
+
+function buildQrGrid(query) {
+  const grid = document.getElementById('qrGrid');
+  const list = query
+    ? employees.filter(e => e.name.toLowerCase().includes(query) || (e.designation||'').toLowerCase().includes(query))
+    : employees;
+  grid.innerHTML = '';
+  qrInstances = {};
+  list.forEach(emp => {
+    const card = document.createElement('div');
+    card.className = 'qr-card';
+    card.title = 'Click to enlarge (coming soon)';
+    const qrDiv = document.createElement('div');
+    const nameEl  = document.createElement('div'); nameEl.className = 'qr-card-name'; nameEl.textContent = emp.name;
+    const desigEl = document.createElement('div'); desigEl.className = 'qr-card-desig'; desigEl.textContent = emp.designation || '';
+    const idEl    = document.createElement('div'); idEl.className = 'qr-card-id'; idEl.textContent = emp.id;
+    card.appendChild(qrDiv);
+    card.appendChild(nameEl);
+    card.appendChild(desigEl);
+    card.appendChild(idEl);
+    grid.appendChild(card);
+    try {
+      const qr = new QRCode(qrDiv, {
+        text: emp.id,
+        width: 150, height: 150,
+        colorDark: '#1E293B', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      qrInstances[emp.id] = qr;
+    } catch(e) { qrDiv.textContent = emp.id; }
+  });
+}
+
+// ── SETUP (disabled) ──────────────────────────────────────────────────────────
+function openSetup()  {}
+function saveConfig() {}
+function populateTemplate() {}
 </script>
 </body>
 </html>
