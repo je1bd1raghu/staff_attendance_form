@@ -372,13 +372,22 @@
       <div class="admin-banner-icon">🛡️</div>
       <div>
         <div class="admin-banner-title">Admin Mode Active</div>
-        <div class="admin-banner-sub">Scan employee QR code to mark attendance</div>
+        <div class="admin-banner-sub">Scan employee QR code · you must be physically present at the selected location</div>
       </div>
     </div>
 
     <!-- Location picker -->
     <div class="field-label">Select Duty Location</div>
     <div class="admin-loc-pills" id="adminLocPills"></div>
+
+    <!-- Admin GPS status -->
+    <div class="loc-status checking" id="adminLocStatus" style="margin-top:10px">
+      <div class="loc-icon" id="adminLocIcon">📡</div>
+      <div>
+        <div class="loc-title" id="adminLocTitle">Getting your location…</div>
+        <div class="loc-sub"  id="adminLocSub">Please wait</div>
+      </div>
+    </div>
 
     <!-- QR scanner -->
     <div class="field-label">Scan Employee QR Code</div>
@@ -489,6 +498,9 @@ let verifiedPin = null;  // PIN confirmed by server; held in memory for the sess
 let isAdmin          = false;
 let adminLocId       = null;    // selected location id in admin mode
 let scannedEmpId     = null;    // EMP id from last scan
+let adminWatchId     = null;    // geolocation watchId for admin GPS
+let adminCurrentPos  = null;    // admin's live GPS position
+let adminLocVerified = false;   // true when admin is within tolerance of selected location
 let scannerStream    = null;
 let scannerAnimFrame = null;
 let scannerPaused    = false;
@@ -1017,6 +1029,7 @@ function enterAdmin() {
   renderAdminRecords();
   populateAdminLocs();
   populateSummaryMonths();
+  startAdminWatch();           // begin GPS tracking for admin location verification
   // Camera is OFF by default — admin must press the button to start it
   resetCameraToggleBtn();
 }
@@ -1024,6 +1037,7 @@ function enterAdmin() {
 function exitAdmin() {
   isAdmin = false;
   verifiedPin = null;   // forget PIN when leaving admin mode
+  stopAdminWatch();     // release GPS watcher
   stopScanner();
   scannedEmpId = null;
   document.getElementById('adminView').style.display    = 'none';
@@ -1047,6 +1061,97 @@ function selectAdminLoc(id) {
   document.querySelectorAll('.loc-pill').forEach(p => {
     p.classList.toggle('selected', p.dataset.lid === id);
   });
+  checkAdminProximity();  // re-evaluate GPS against newly selected location
+}
+
+// ── ADMIN GPS ─────────────────────────────────────────────────────────────────
+function setAdminLoc(cls, icon, title, sub) {
+  const el = document.getElementById('adminLocStatus');
+  if (!el) return;
+  el.className = 'loc-status ' + cls;
+  document.getElementById('adminLocIcon').textContent  = icon;
+  document.getElementById('adminLocTitle').textContent = title;
+  document.getElementById('adminLocSub').textContent   = sub;
+}
+
+function startAdminWatch() {
+  if (adminWatchId !== null) return;
+  if (!navigator.geolocation) {
+    setAdminLoc('failed', '❌', 'GPS not supported', 'Location verification unavailable');
+    return;
+  }
+  setAdminLoc('checking', '📡', 'Getting your location…', 'Please wait');
+  adminWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      adminCurrentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
+      checkAdminProximity();
+    },
+    err => {
+      const msgs = { 1: 'Location permission denied — allow GPS to continue', 2: 'Location unavailable', 3: 'Location timed out' };
+      setAdminLoc('failed', '❌', msgs[err.code] || 'Location error', 'Check-in/out disabled until location is verified');
+      adminLocVerified = false;
+      updateAdminActionBtns();
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+  );
+}
+
+function stopAdminWatch() {
+  if (adminWatchId !== null) {
+    navigator.geolocation.clearWatch(adminWatchId);
+    adminWatchId = null;
+  }
+  adminCurrentPos  = null;
+  adminLocVerified = false;
+}
+
+function checkAdminProximity() {
+  if (!adminCurrentPos || !adminLocId) {
+    if (!adminLocId) setAdminLoc('idle', '📍', 'No location selected', 'Select a duty location above');
+    adminLocVerified = false;
+    updateAdminActionBtns();
+    return;
+  }
+  const loc = locations.find(l => l.id === adminLocId);
+  if (!loc) { adminLocVerified = false; updateAdminActionBtns(); return; }
+
+  const dist = Math.round(haversine(adminCurrentPos.lat, adminCurrentPos.lng, loc.lat, loc.lng));
+  const tol  = loc.tolerance || 15;
+
+  if (dist <= tol) {
+    adminLocVerified = true;
+    setAdminLoc('verified', '✅', loc.name, 'You are ' + dist + 'm away — location verified ✓');
+  } else {
+    adminLocVerified = false;
+    setAdminLoc('failed', '🚫', 'You are outside ' + loc.name,
+      dist + 'm away — must be within ' + tol + 'm to mark attendance here');
+  }
+  updateAdminActionBtns();
+}
+
+// Disable or re-enable the Check IN / Check OUT buttons based on GPS state.
+// Called after every proximity update or location pill change.
+function updateAdminActionBtns() {
+  // Buttons only exist in DOM after a scan — guard safely
+  const btnIn  = document.getElementById('btnScanIn');
+  const btnOut = document.getElementById('btnScanOut');
+  if (!btnIn || !btnOut) return;
+  if (!adminLocVerified) {
+    btnIn.disabled  = true;
+    btnOut.disabled = true;
+  } else {
+    // Re-apply normal scan-state logic: only override if they were disabled by GPS
+    // We rely on onQrDetected() having set the right state; just remove the GPS block.
+    // If scannedEmpId is set, re-evaluate state normally.
+    if (scannedEmpId) {
+      const emp = employees.find(e => e.id === scannedEmpId);
+      if (emp) {
+        const rec = todayRecs.find(r => r.employeeId === emp.id && r.date === todayStr());
+        btnIn.disabled  = !(!rec);
+        btnOut.disabled = !(rec && rec.checkIn && !rec.checkOut);
+      }
+    }
+  }
 }
 
 // ── CAMERA TOGGLE ────────────────────────────────────────────────────────────
@@ -1165,8 +1270,15 @@ function onQrDetected(data) {
   // Show action buttons
   const btnIn  = document.getElementById('btnScanIn');
   const btnOut = document.getElementById('btnScanOut');
-  btnIn.disabled  = !(!rec);                         // enable only if not yet checked in
-  btnOut.disabled = !(rec && rec.checkIn && !rec.checkOut); // enable only if checked in but not out
+  // Set state based on record, then further constrain by GPS verification
+  btnIn.disabled  = !(!rec) || !adminLocVerified;
+  btnOut.disabled = !(rec && rec.checkIn && !rec.checkOut) || !adminLocVerified;
+  if (!adminLocVerified) {
+    // Hint the user GPS is the blocker, not scan state
+    const gpsSub = '📍 Location not verified — cannot mark attendance yet';
+    const stEl = document.getElementById('qrScanStatus');
+    if (stEl && !stEl.textContent.includes('Scanned')) {/* keep scan msg */}
+  }
   document.getElementById('scanActionRow').style.display = 'grid';
   document.getElementById('btnRescan').style.display     = 'block';
 }
@@ -1176,6 +1288,7 @@ async function adminDoIn() {
   const emp = employees.find(e => e.id === scannedEmpId);
   if (!emp) { showToast('No employee scanned', 'error'); return; }
   if (!adminLocId) { showToast('Select a duty location first', 'warning'); return; }
+  if (!adminLocVerified) { showToast('Your location is not verified for this site — move closer', 'error'); return; }
   const loc = locations.find(l => l.id === adminLocId);
   const locLabel = loc ? loc.name : adminLocId;
   const now = new Date();
@@ -1210,6 +1323,7 @@ async function adminDoIn() {
 async function adminDoOut() {
   const emp = employees.find(e => e.id === scannedEmpId);
   if (!emp) { showToast('No employee scanned', 'error'); return; }
+  if (!adminLocVerified) { showToast('Your location is not verified for this site — move closer', 'error'); return; }
   document.getElementById('btnScanOut').disabled = true;
   document.getElementById('btnScanOut').innerHTML = '<span class="spinner"></span>';
   try {
