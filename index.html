@@ -462,6 +462,7 @@
   <button class="btn-exit-admin" style="margin: 0 0 32px" onclick="exitAdmin()">✕ Exit Admin Mode</button>
 </div>
 
+<script src="libs/papaparse.min.js"></script>
 <script src="libs/fp.min.js"></script>
 <!-- QR code generation -->
 <script src="libs/qrcode.min.js"></script>
@@ -577,25 +578,13 @@ function csvStringify(records) {
 }
 function csvParse(text) {
   if (!text || !text.trim()) return [];
-  const lines = text.trim().split('\n');
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',');
-  return lines.slice(1).map(line => {
-    const vals = []; let cur = ''; let inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (inQ) { if (ch === '"' && line[i+1] === '"') { cur += '"'; i++; }
-                 else if (ch === '"') inQ = false;
-                 else cur += ch; }
-      else if (ch === '"') inQ = true;
-      else if (ch === ',') { vals.push(cur); cur = ''; }
-      else cur += ch;
-    }
-    vals.push(cur);
-    const rec = {};
-    headers.forEach((h, i) => { rec[h.trim()] = vals[i] !== undefined ? vals[i].trim() : ''; });
-    return rec;
+  const result = Papa.parse(text.trim(), {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: h => h.trim(),
+    transform: v => v.trim()
   });
+  return result.data || [];
 }
 
 async function attGet() {
@@ -605,11 +594,26 @@ async function attGet() {
   return csvParse(await r.text());
 }
 
+// ── WRITE LOCK ───────────────────────────────────────────────────────────────
+// GitHub Gist does not support atomic writes or If-Match. To reduce the window
+// for concurrent-write collisions we serialise all attPatch calls through a
+// promise queue: while one write is in flight no second write can start.
+let _patchQueue = Promise.resolve();
+
 async function attPatch(records) {
+  // Serialise writes — wait for any in-flight patch to complete first
+  const result = _patchQueue.then(() => _doPatch(records));
+  _patchQueue = result.catch(() => {});   // keep queue moving even on error
+  return result;
+}
+
+async function _doPatch(records) {
   const csvContent = csvStringify(records);
   const body = { files: {} };
   body.files[ATT_FILE] = { content: csvContent };
-  // Admin writes are authenticated server-side with the PIN.
+  // Admin writes include the raw PIN (sent over HTTPS to the worker).
+  // verifiedPin holds the raw value only for the duration of the admin session;
+  // it is cleared on exitAdmin(). We never store it in localStorage or logs.
   if (isAdmin && verifiedPin) body.adminPin = verifiedPin;
   const r = await fetch(WORKER_URL + cfg.attendanceGistId, {
     method: 'PATCH',
@@ -621,6 +625,10 @@ async function attPatch(records) {
     try { const d = await r.json(); if (d.error) msg = d.error; } catch {}
     throw new Error(msg);
   }
+  // Note: full concurrency safety (two devices writing simultaneously) requires
+  // a backend with atomic writes. This queue only prevents collisions from the
+  // same device (e.g. double-tap). Cross-device race windows remain small
+  // (~1–2 s) because each caller does a fresh attGet() immediately before writing.
 }
 
 async function gistRawGet(gistId, filename) {
@@ -712,6 +720,14 @@ function clearEmployee() {
   document.getElementById('comboClear').style.display = 'none';
   document.getElementById('empSelect').value = '';
   renderDropdown(''); resetLoc(); disableBtns();
+  clearEmployeeWatch();
+}
+function clearEmployeeWatch() {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    currentPos = null;
+  }
 }
 document.getElementById('comboDropdown').addEventListener('mousedown', function(e) {
   const item = e.target.closest('.combo-item');
@@ -746,6 +762,7 @@ function onPosErr(e) {
   disableBtns();
 }
 function checkProximity() {
+  if (!currentPos) { disableBtns(); return; }   // GPS not yet acquired
   const emp = getEmp();
   if (!emp) return;
   const allowed = emp.locationIds && emp.locationIds.length
@@ -1002,7 +1019,11 @@ function submitPin() {
     document.getElementById('pinKeypad').style.pointerEvents = '';
     document.getElementById('pinSubmit').textContent = '✓ Confirm PIN';
     if (ok) {
-      verifiedPin = pin;   // keep in memory for this session's admin writes
+      verifiedPin = pin;
+      // Security note: verifiedPin holds the raw PIN for the admin session lifetime.
+      // It is cleared on exitAdmin() and never written to storage.
+      // A stronger approach would be to exchange the PIN for a short-lived
+      // server-issued token here and store that instead — requires worker changes.
       closePinOverlay();
       enterAdmin();
     } else {
@@ -1196,6 +1217,7 @@ async function startScanner() {
     tickScanner();
   } catch(e) {
     document.getElementById('qrScanStatus').textContent = '❌ Camera error: ' + e.message;
+    resetCameraToggleBtn();   // restore "Start Camera" button state
   }
 }
 
@@ -1540,6 +1562,11 @@ function buildQrGrid(query) {
 function openSetup()  {}
 function saveConfig() {}
 function populateTemplate() {}
+  // Clean up both geolocation watches on page unload
+  window.addEventListener('pagehide', () => {
+    if (watchId      !== null) navigator.geolocation.clearWatch(watchId);
+    if (adminWatchId !== null) navigator.geolocation.clearWatch(adminWatchId);
+  });
 </script>
 </body>
 </html>
