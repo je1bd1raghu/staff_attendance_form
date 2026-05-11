@@ -160,6 +160,22 @@
   .qr-scan-line { position: absolute; left: 8%; right: 8%; height: 2px; background: linear-gradient(90deg, transparent, #7C3AED, transparent); border-radius: 1px; top: 10%; animation: scan 2s ease-in-out infinite; }
   .qr-scan-status { text-align: center; font-size: 14px; font-weight: 700; color: var(--text2); padding: 10px 0 4px; }
 
+
+  /* Camera toggle */
+  .btn-camera-toggle { width: 100%; padding: 18px; border: 2px dashed var(--admin); border-radius: var(--radius-sm); background: var(--admin-light); color: var(--admin); font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 800; cursor: pointer; margin-bottom: 12px; transition: all 0.15s; }
+  .btn-camera-toggle:hover { background: var(--admin); color: white; }
+  .btn-camera-toggle.active { background: var(--admin); color: white; border-style: solid; }
+  .qr-scanner-wrap { display: none; }
+  .qr-scanner-wrap.visible { display: block; }
+  .qr-scan-status { display: none; }
+  .qr-scan-status.visible { display: block; }
+
+  /* Downloads */
+  .download-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+  .btn-dl { padding: 16px 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: white; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; color: var(--text); transition: all 0.15s; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .btn-dl:hover { border-color: var(--admin); color: var(--admin); background: var(--admin-light); }
+  .btn-dl .dl-icon { font-size: 24px; }
+  .btn-dl .dl-label { font-size: 12px; color: var(--text2); font-weight: 700; }
   /* Admin location picker */
   .admin-loc-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .loc-pill { padding: 8px 14px; border: 2px solid var(--border); border-radius: 50px; font-size: 13px; font-weight: 700; cursor: pointer; color: var(--text2); transition: all 0.15s; background: white; }
@@ -366,7 +382,8 @@
 
     <!-- QR scanner -->
     <div class="field-label">Scan Employee QR Code</div>
-    <div class="qr-scanner-wrap">
+    <button class="btn-camera-toggle" id="btnCameraToggle" onclick="toggleCamera()">📷 Start Camera</button>
+    <div class="qr-scanner-wrap" id="qrScannerWrap">
       <video id="qrVideo" autoplay playsinline muted></video>
       <div class="qr-overlay">
         <div class="qr-frame">
@@ -374,7 +391,7 @@
         </div>
       </div>
     </div>
-    <div class="qr-scan-status" id="qrScanStatus">📷 Point camera at QR code</div>
+    <div class="qr-scan-status" id="qrScanStatus">📷 Press "Start Camera" to begin scanning</div>
 
     <!-- Scanned employee preview -->
     <div class="scan-preview" id="scanPreview">
@@ -406,6 +423,30 @@
     <div class="section-title">Today's Attendance</div>
     <div id="adminRecordsList">
       <div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>
+    </div>
+  </div>
+
+  <!-- Download records -->
+  <div class="card" id="downloadCard">
+    <div class="section-title">Download Records</div>
+    <p style="font-size:13px;color:var(--text2);font-weight:600;margin-bottom:14px;line-height:1.6;">Download all raw attendance data, or a monthly summary with days present, total duty hours, and average daily hours per employee.</p>
+
+    <div class="field-label" style="margin-bottom:6px">Summary month</div>
+    <select id="summaryMonthSel" style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;color:var(--text);background:white;margin-bottom:16px;appearance:auto">
+      <option value="">All months</option>
+    </select>
+
+    <div class="download-row">
+      <button class="btn-dl" onclick="downloadRawCsv()">
+        <span class="dl-icon">📄</span>
+        Raw Records
+        <span class="dl-label">Every check-in/out row</span>
+      </button>
+      <button class="btn-dl" onclick="downloadSummaryCsv()">
+        <span class="dl-icon">📊</span>
+        Summary Sheet
+        <span class="dl-label">Days present · duty hours · avg</span>
+      </button>
     </div>
   </div>
 
@@ -974,7 +1015,10 @@ function enterAdmin() {
   document.getElementById('adminView').style.display    = 'block';
   document.getElementById('adminBtn').classList.add('admin-active');
   renderAdminRecords();
-  startScanner();
+  populateAdminLocs();
+  populateSummaryMonths();
+  // Camera is OFF by default — admin must press the button to start it
+  resetCameraToggleBtn();
 }
 
 function exitAdmin() {
@@ -1005,6 +1049,32 @@ function selectAdminLoc(id) {
   });
 }
 
+// ── CAMERA TOGGLE ────────────────────────────────────────────────────────────
+function resetCameraToggleBtn() {
+  const btn  = document.getElementById('btnCameraToggle');
+  const wrap = document.getElementById('qrScannerWrap');
+  btn.textContent = '📷 Start Camera';
+  btn.classList.remove('active');
+  wrap.classList.remove('visible');
+  document.getElementById('qrScanStatus').textContent = '📷 Press "Start Camera" to begin scanning';
+}
+
+async function toggleCamera() {
+  if (scannerStream) {
+    // Camera is ON → turn it off
+    stopScanner();
+    resetCameraToggleBtn();
+  } else {
+    // Camera is OFF → turn it on
+    const btn  = document.getElementById('btnCameraToggle');
+    const wrap = document.getElementById('qrScannerWrap');
+    btn.textContent = '⏹ Stop Camera';
+    btn.classList.add('active');
+    wrap.classList.add('visible');
+    await startScanner();
+  }
+}
+
 // ── QR SCANNER ────────────────────────────────────────────────────────────────
 async function startScanner() {
   try {
@@ -1027,6 +1097,11 @@ async function startScanner() {
 function stopScanner() {
   if (scannerAnimFrame) { cancelAnimationFrame(scannerAnimFrame); scannerAnimFrame = null; }
   if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
+  // Reset button label (safe to call even on exitAdmin)
+  const btn = document.getElementById('btnCameraToggle');
+  if (btn) { btn.textContent = '📷 Start Camera'; btn.classList.remove('active'); }
+  const wrap = document.getElementById('qrScannerWrap');
+  if (wrap) wrap.classList.remove('visible');
 }
 
 function tickScanner() {
@@ -1053,8 +1128,12 @@ function resumeScanner() {
   document.getElementById('scanPreview').classList.remove('visible');
   document.getElementById('scanActionRow').style.display = 'none';
   document.getElementById('btnRescan').style.display     = 'none';
-  document.getElementById('qrScanStatus').textContent    = '📷 Point camera at QR code';
-  scannerAnimFrame = requestAnimationFrame(tickScanner);
+  if (scannerStream) {
+    document.getElementById('qrScanStatus').textContent = '📷 Point camera at QR code';
+    scannerAnimFrame = requestAnimationFrame(tickScanner);
+  } else {
+    document.getElementById('qrScanStatus').textContent = '📷 Press "Start Camera" to begin scanning';
+  }
 }
 
 function onQrDetected(data) {
@@ -1154,6 +1233,143 @@ async function adminDoOut() {
     document.getElementById('btnScanOut').disabled = false;
   }
   document.getElementById('btnScanOut').innerHTML = '🚪 Check OUT';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── DOWNLOAD RECORDS ──────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function triggerDownload(filename, content) {
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(content);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+async function downloadRawCsv() {
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+  try {
+    const records = await attGet();
+    const content = csvStringify(records);
+    const ts = new Date().toISOString().slice(0,10);
+    triggerDownload('attendance_records_' + ts + '.csv', content);
+    showToast('Downloaded ' + records.length + ' records', 'success');
+  } catch(e) {
+    showToast('Download failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.style.opacity = '';
+  }
+}
+
+async function downloadSummaryCsv() {
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+  try {
+    const records  = await attGet();
+    const monthSel = document.getElementById('summaryMonthSel');
+    const filter   = monthSel ? monthSel.value : '';   // "YYYY-MM" or "" for all
+
+    // Parse timestamps to get durations
+    // Group: key = employeeId + "|" + "YYYY-MM"
+    const groups = {};
+    for (const r of records) {
+      if (!r.date) continue;
+      const monthKey = r.date.slice(0, 7);  // "YYYY-MM"
+      if (filter && monthKey !== filter) continue;
+      const key = (r.employeeId || '') + '|' + monthKey;
+      if (!groups[key]) {
+        groups[key] = {
+          employeeId:  r.employeeId || '',
+          name:        r.name || '',
+          designation: r.designation || '',
+          monthKey,
+          days:        new Set(),
+          totalMins:   0,
+        };
+      }
+      const g = groups[key];
+      if (r.date) g.days.add(r.date);
+      // Calculate duty hours from timestamps if available, else from HH:MM strings
+      let mins = 0;
+      if (r.checkIn && r.checkOut) {
+        if (r.checkInTimestamp && r.checkOutTimestamp) {
+          const ms = new Date(r.checkOutTimestamp) - new Date(r.checkInTimestamp);
+          if (ms > 0) mins = ms / 60000;
+        } else {
+          // Fallback: parse "HH:MM" strings
+          const [ih, im] = r.checkIn.split(':').map(Number);
+          const [oh, om] = r.checkOut.split(':').map(Number);
+          if (!isNaN(ih) && !isNaN(oh)) {
+            mins = (oh * 60 + om) - (ih * 60 + im);
+            if (mins < 0) mins += 24 * 60;  // past-midnight shift
+          }
+        }
+      }
+      g.totalMins += mins;
+    }
+
+    // Build CSV rows sorted by month, then name
+    const rows = Object.values(groups).sort((a, b) =>
+      a.monthKey.localeCompare(b.monthKey) || a.name.localeCompare(b.name)
+    );
+
+    const header = ['Month', 'Employee ID', 'Name', 'Designation',
+                    'Days Present', 'Total Duty Hours', 'Avg Daily Hours'];
+    const lines = [header.join(',')];
+    for (const g of rows) {
+      const days     = g.days.size;
+      const totalH   = (g.totalMins / 60).toFixed(2);
+      const avgH     = days > 0 ? (g.totalMins / 60 / days).toFixed(2) : '0.00';
+      // Format month as "Mon YYYY"
+      const [y, m]   = g.monthKey.split('-');
+      const monthLabel = new Date(+y, +m - 1, 1)
+        .toLocaleString('en-IN', { month: 'short', year: 'numeric' });
+      lines.push([
+        csvEscape(monthLabel),
+        csvEscape(g.employeeId),
+        csvEscape(g.name),
+        csvEscape(g.designation),
+        days,
+        totalH,
+        avgH
+      ].join(','));
+    }
+
+    const content = lines.join('\r\n');
+    const suffix  = filter ? '_' + filter : '_all';
+    triggerDownload('attendance_summary' + suffix + '.csv', content);
+    showToast('Summary: ' + rows.length + ' employee-month rows', 'success');
+  } catch(e) {
+    showToast('Download failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.style.opacity = '';
+  }
+}
+
+// Populate the month selector from all records
+async function populateSummaryMonths() {
+  try {
+    const records = await attGet();
+    const months  = [...new Set(records.map(r => r.date ? r.date.slice(0,7) : '').filter(Boolean))].sort().reverse();
+    const sel = document.getElementById('summaryMonthSel');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">All months</option>' +
+      months.map(m => {
+        const [y, mo] = m.split('-');
+        const label = new Date(+y, +mo - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+        return `<option value="${m}">${label}</option>`;
+      }).join('');
+    // Default to current month
+    const cur = new Date().toISOString().slice(0,7);
+    if (months.includes(cur)) sel.value = cur;
+  } catch { /* no records yet */ }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
