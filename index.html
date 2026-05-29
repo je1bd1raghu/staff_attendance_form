@@ -9,36 +9,36 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg: #F4F6FA;
+    --bg: #F5F5F5;
     --surface: #FFFFFF;
-    --surface2: #F0F4FF;
-    --primary: #2563EB;
-    --primary-dark: #1D4ED8;
-    --primary-light: #EFF6FF;
+    --surface2: #FFF4EC;
+    --primary: #F5821F;
+    --primary-dark: #D96A08;
+    --primary-light: #FFF4EC;
     --success: #16A34A;
     --success-light: #F0FDF4;
     --danger: #DC2626;
     --danger-light: #FEF2F2;
     --warning: #D97706;
     --warning-light: #FFFBEB;
-    --text: #1E293B;
-    --text2: #475569;
-    --text3: #94A3B8;
-    --border: #E2E8F0;
+    --text: #212529;
+    --text2: #495057;
+    --text3: #ADB5BD;
+    --border: #DEE2E6;
     --radius: 16px;
     --radius-sm: 10px;
-    --shadow: 0 2px 12px rgba(0,0,0,0.07);
-    --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
-    --admin: #7C3AED;
-    --admin-light: #F5F3FF;
+    --shadow: 0 2px 12px rgba(33,37,41,0.08);
+    --shadow-lg: 0 8px 32px rgba(33,37,41,0.14);
+    --admin: #212529;
+    --admin-light: #F8F9FA;
   }
   body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
-  .header { background: var(--primary); color: white; padding: 20px 20px 60px; text-align: center; position: relative; }
+  .header { background: linear-gradient(135deg, #212529 0%, #343a40 100%); color: white; padding: 20px 20px 60px; text-align: center; position: relative; }
   .header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
   .header p  { font-size: 12px; opacity: 0.8; margin-top: 2px; }
   .header-right { position: absolute; right: 16px; top: 20px; display: flex; gap: 8px; }
   .icon-btn { background: rgba(255,255,255,0.2); border: none; border-radius: 10px; color: white; width: 38px; height: 38px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-  .icon-btn.admin-active { background: rgba(255,255,255,0.9); color: var(--admin); }
+  .icon-btn.admin-active { background: rgba(255,255,255,0.9); color: #F5821F; }
   .card-wrapper { padding: 0 16px; margin-top: -40px; position: relative; z-index: 10; }
   .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 24px; margin-bottom: 16px; }
   .card.admin-card { border: 2px solid var(--admin); }
@@ -57,7 +57,7 @@
   .combo-input-row { display: flex; align-items: center; border: 2px solid var(--border); border-radius: var(--radius-sm); background: white; transition: border-color 0.2s; }
   .combo-wrapper.open .combo-input-row,
   .combo-input-row:focus-within { border-color: var(--primary); }
-  .combo-search-icon { padding: 0 10px 0 14px; font-size: 16px; flex-shrink: 0; }
+  .combo-search-icon { padding: 0 10px 0 14px; font-size: 16px; flex-shrink: 0; color: var(--primary); }
   .combo-input { flex: 1; padding: 15px 0; border: none; outline: none; font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 600; color: var(--text); background: transparent; }
   .combo-input::placeholder { color: var(--text3); font-weight: 400; }
   .combo-clear { background: none; border: none; padding: 0 14px; font-size: 16px; color: var(--text3); cursor: pointer; line-height: 1; flex-shrink: 0; }
@@ -143,7 +143,7 @@
 
   /* ── ADMIN MODE STYLES ────────────────────────────────────────────────────── */
   .admin-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--admin-light); color: var(--admin); border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 800; margin-bottom: 16px; }
-  .admin-banner { background: linear-gradient(135deg, var(--admin) 0%, #5B21B6 100%); color: white; border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+  .admin-banner { background: linear-gradient(135deg, #F5821F 0%, #D96A08 100%); color: white; border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
   .admin-banner-icon { font-size: 28px; }
   .admin-banner-title { font-size: 16px; font-weight: 800; }
   .admin-banner-sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
@@ -157,7 +157,7 @@
   .qr-frame::before { top: -3px; left: -3px; border-width: 4px 0 0 4px; border-radius: 12px 0 0 0; }
   .qr-frame::after  { bottom: -3px; right: -3px; border-width: 0 4px 4px 0; border-radius: 0 0 12px 0; }
   @keyframes scan { 0%,100%{ top:10%; } 50%{ top:80%; } }
-  .qr-scan-line { position: absolute; left: 8%; right: 8%; height: 2px; background: linear-gradient(90deg, transparent, #7C3AED, transparent); border-radius: 1px; top: 10%; animation: scan 2s ease-in-out infinite; }
+  .qr-scan-line { position: absolute; left: 8%; right: 8%; height: 2px; background: linear-gradient(90deg, transparent, #F5821F, transparent); border-radius: 1px; top: 10%; animation: scan 2s ease-in-out infinite; }
   .qr-scan-status { text-align: center; font-size: 14px; font-weight: 700; color: var(--text2); padding: 10px 0 4px; }
 
 
@@ -217,7 +217,7 @@
   /* QR print page */
   .qr-print-overlay { position: fixed; inset: 0; background: white; z-index: 500; overflow-y: auto; display: none; }
   .qr-print-overlay.open { display: block; }
-  .qr-print-header { background: var(--primary); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .qr-print-header { background: linear-gradient(135deg, #212529 0%, #343a40 100%); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
   .qr-print-header h2 { font-size: 18px; font-weight: 800; }
   .qr-print-header button { background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 8px; padding: 8px 16px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; }
   .qr-print-body { padding: 16px; }
@@ -842,16 +842,25 @@ function resetLoc() {
 // ── BUTTONS ───────────────────────────────────────────────────────────────────
 function updateBtns() {
   const id  = document.getElementById('empSelect').value;
-  const rec = todayRecs.find(r => r.employeeId === id && r.date === todayStr());
   const btnIn  = document.getElementById('btnIn');
   const btnOut = document.getElementById('btnOut');
-  const dIn  = deviceCheckedIn();
-  const dOut = deviceCheckedOut();
-  if (!rec)                              { btnIn.disabled = dIn;  btnOut.disabled = true;  }
-  else if (rec.checkIn && !rec.checkOut) { btnIn.disabled = true; btnOut.disabled = dOut; }
-  else                                   { btnIn.disabled = true; btnOut.disabled = true;  }
-  btnIn.title  = dIn  ? 'This device has already checked in today'  : '';
-  btnOut.title = dOut ? 'This device has already checked out today' : '';
+  if (!locVerified || !id) { disableBtns(); return; }
+  // Find the most recent record for today (the last one for this employee)
+  const empRecs = todayRecs.filter(r => r.employeeId === id && r.date === todayStr());
+  const lastRec = empRecs.length ? empRecs[empRecs.length - 1] : null;
+  if (!lastRec) {
+    // No record yet: allow check-in
+    btnIn.disabled  = false;
+    btnOut.disabled = true;
+  } else if (lastRec.checkIn && !lastRec.checkOut) {
+    // Currently checked in: allow check-out only
+    btnIn.disabled  = true;
+    btnOut.disabled = false;
+  } else {
+    // Last record has both check-in and check-out: allow another check-in (lunch return etc.)
+    btnIn.disabled  = false;
+    btnOut.disabled = true;
+  }
 }
 function disableBtns() {
   document.getElementById('btnIn').disabled  = true;
@@ -866,7 +875,6 @@ async function doCheckIn() {
   const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '', date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceId: deviceId };
   await withBtnLoad('btnIn', async () => {
     await appendRecord(rec);
-    markDeviceIn();
     todayRecs.push(rec);
     renderRecords(); updateBtns();
     showToast('✅ Checked IN at ' + rec.checkIn, 'success');
@@ -881,7 +889,6 @@ async function doCheckOut() {
   rec.checkOut = timeStr(now); rec.checkOutTimestamp = now.toISOString();
   await withBtnLoad('btnOut', async () => {
     await saveAll();
-    markDeviceOut();
     renderRecords(); updateBtns();
     showToast('🚪 Checked OUT at ' + rec.checkOut, 'success');
   });
@@ -896,31 +903,18 @@ async function withBtnLoad(id, fn) {
   btn.innerHTML = orig;
 }
 
-// ── DEVICE LOCK ───────────────────────────────────────────────────────────────
-const DEVICE_KEY = 'att_device_lock';
-function getDeviceLog() {
-  try {
-    const raw = localStorage.getItem(DEVICE_KEY);
-    const log = raw ? JSON.parse(raw) : {};
-    if (log.date !== todayStr()) return { date: todayStr(), checkedIn: false, checkedOut: false };
-    return log;
-  } catch(e) { return { date: todayStr(), checkedIn: false, checkedOut: false }; }
-}
-function saveDeviceLog(log) { try { localStorage.setItem(DEVICE_KEY, JSON.stringify(log)); } catch(e) {} }
-function deviceCheckedIn()  { return getDeviceLog().checkedIn;  }
-function deviceCheckedOut() { return getDeviceLog().checkedOut; }
-function markDeviceIn()     { const l = getDeviceLog(); l.checkedIn  = true; saveDeviceLog(l); }
-function markDeviceOut()    { const l = getDeviceLog(); l.checkedOut = true; saveDeviceLog(l); }
-
 // ── RECORD OPS ────────────────────────────────────────────────────────────────
 async function appendRecord(rec) {
   const records = await attGet().catch(() => []);
-  if (rec.deviceId) {
-    const sameDev = records.find(r => r.date === rec.date && r.deviceId === rec.deviceId && r.checkIn);
-    if (sameDev) throw new Error('Another employee (' + sameDev.name + ') has already checked in from this device today');
+  if (rec.deviceId && rec.deviceId !== 'ADMIN') {
+    // Prevent two different employees checking in from the same device simultaneously
+    const openDevRec = records.find(r => r.date === rec.date && r.deviceId === rec.deviceId && r.checkIn && !r.checkOut && r.employeeId !== rec.employeeId);
+    if (openDevRec) throw new Error('Another employee (' + openDevRec.name + ') is currently checked in from this device');
   }
-  const already = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date);
-  if (already) throw new Error(rec.name + ' already checked in today');
+  // Allow multiple check-ins per day (e.g. after lunch break)
+  // Just ensure there is no currently open (no checkout) record for this employee
+  const openRec = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && !r.checkOut);
+  if (openRec) throw new Error(rec.name + ' is already checked in — please check out first');
   records.push(rec);
   await attPatch(records);
 }
@@ -929,12 +923,6 @@ async function saveAll() {
   const allRecs = await attGet().catch(() => []);
   const today   = todayStr();
   const others  = allRecs.filter(r => r.date !== today);
-  if (deviceId) {
-    const emp = getEmp();
-    const todayGist = allRecs.filter(r => r.date === today);
-    const devOutConflict = todayGist.find(r => r.deviceId === deviceId && r.checkOut && emp && r.employeeId !== emp.id);
-    if (devOutConflict) throw new Error('Another employee (' + devOutConflict.name + ') has already checked out from this device today');
-  }
   await attPatch([...others, ...todayRecs]);
 }
 
@@ -1193,15 +1181,16 @@ function updateAdminActionBtns() {
     btnIn.disabled  = true;
     btnOut.disabled = true;
   } else {
-    // Re-apply normal scan-state logic: only override if they were disabled by GPS
-    // We rely on onQrDetected() having set the right state; just remove the GPS block.
-    // If scannedEmpId is set, re-evaluate state normally.
     if (scannedEmpId) {
       const emp = employees.find(e => e.id === scannedEmpId);
       if (emp) {
-        const rec = todayRecs.find(r => r.employeeId === emp.id && r.date === todayStr());
-        btnIn.disabled  = !(!rec);
-        btnOut.disabled = !(rec && rec.checkIn && !rec.checkOut);
+        // Find the most recent record for today
+        const empRecs = todayRecs.filter(r => r.employeeId === emp.id && r.date === todayStr());
+        const lastRec = empRecs.length ? empRecs[empRecs.length - 1] : null;
+        const hasOpenRec = lastRec && lastRec.checkIn && !lastRec.checkOut;
+        // Allow check-in when no open record; allow check-out when there is one
+        btnIn.disabled  = hasOpenRec;
+        btnOut.disabled = !hasOpenRec;
       }
     }
   }
@@ -1307,32 +1296,28 @@ function onQrDetected(data) {
   scannerPaused = true;
   scannedEmpId  = emp.id;
 
-  // Show preview
-  const rec = todayRecs.find(r => r.employeeId === emp.id && r.date === todayStr());
+  // Find the most recent record for today
+  const empRecs = todayRecs.filter(r => r.employeeId === emp.id && r.date === todayStr());
+  const lastRec = empRecs.length ? empRecs[empRecs.length - 1] : null;
+  const hasOpenRec = lastRec && lastRec.checkIn && !lastRec.checkOut;
+
   const init = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
   document.getElementById('scanAvatar').textContent  = init;
   document.getElementById('scanName').textContent    = emp.name;
   document.getElementById('scanDesig').textContent   = emp.designation || '';
   let stateText = '';
-  if (!rec)                              stateText = '⬜ Not checked in today';
-  else if (rec.checkIn && !rec.checkOut) stateText = '✅ Checked in at ' + rec.checkIn + ' · tap CHECK OUT';
-  else                                   stateText = '✔️ Fully checked out at ' + rec.checkOut;
+  if (!lastRec)       stateText = '⬜ Not checked in today';
+  else if (hasOpenRec) stateText = '✅ Checked in at ' + lastRec.checkIn + ' · tap CHECK OUT';
+  else                 stateText = '↩ Last checkout: ' + lastRec.checkOut + ' · tap CHECK IN to re-enter';
   document.getElementById('scanState').textContent   = stateText;
   document.getElementById('scanPreview').classList.add('visible');
   document.getElementById('qrScanStatus').textContent = '✅ Scanned: ' + emp.name;
 
-  // Show action buttons
+  // Show action buttons — allow check-in if no open record, check-out if open record exists
   const btnIn  = document.getElementById('btnScanIn');
   const btnOut = document.getElementById('btnScanOut');
-  // Set state based on record, then further constrain by GPS verification
-  btnIn.disabled  = !(!rec) || !adminLocVerified;
-  btnOut.disabled = !(rec && rec.checkIn && !rec.checkOut) || !adminLocVerified;
-  if (!adminLocVerified) {
-    // Hint the user GPS is the blocker, not scan state
-    const gpsSub = '📍 Location not verified — cannot mark attendance yet';
-    const stEl = document.getElementById('qrScanStatus');
-    if (stEl && !stEl.textContent.includes('Scanned')) {/* keep scan msg */}
-  }
+  btnIn.disabled  = hasOpenRec || !adminLocVerified;
+  btnOut.disabled = !hasOpenRec || !adminLocVerified;
   document.getElementById('scanActionRow').style.display = 'grid';
   document.getElementById('btnRescan').style.display     = 'block';
 }
@@ -1357,8 +1342,9 @@ async function adminDoIn() {
   document.getElementById('btnScanIn').innerHTML = '<span class="spinner"></span>';
   try {
     const records = await attGet().catch(() => []);
-    const already = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date);
-    if (already) throw new Error(rec.name + ' already checked in today');
+    // Check there is no currently open record (not checked out) for this employee today
+    const openRec = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && !r.checkOut);
+    if (openRec) throw new Error(rec.name + ' is already checked in — check out first');
     records.push(rec);
     await attPatch(records);
     todayRecs.push(rec);
