@@ -240,6 +240,24 @@
 
   /* Admin exit btn */
   .btn-exit-admin { width: 100%; padding: 14px; border: 2px solid var(--danger); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 800; cursor: pointer; background: white; color: var(--danger); margin-top: 8px; }
+
+  /* QR Enlarge Modal */
+  .qr-enlarge-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.82); z-index: 600; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; padding: 24px; }
+  .qr-enlarge-overlay.open { opacity: 1; pointer-events: all; }
+  .qr-enlarge-box { background: white; border-radius: 24px; padding: 32px 28px 28px; text-align: center; max-width: 340px; width: 100%; transform: scale(0.88); transition: transform 0.28s cubic-bezier(0.34,1.3,0.64,1); box-shadow: 0 24px 64px rgba(0,0,0,0.3); }
+  .qr-enlarge-overlay.open .qr-enlarge-box { transform: scale(1); }
+  .qr-enlarge-qr { display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
+  .qr-enlarge-qr canvas, .qr-enlarge-qr img { border-radius: 12px; }
+  .qr-enlarge-name { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1.3; margin-bottom: 4px; }
+  .qr-enlarge-desig { font-size: 13px; color: var(--text2); font-weight: 700; margin-bottom: 6px; }
+  .qr-enlarge-id { font-size: 12px; color: var(--primary); font-weight: 700; font-family: monospace; margin-bottom: 22px; letter-spacing: 0.5px; }
+  .qr-enlarge-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .btn-qr-print { padding: 14px 10px; border: 2px solid var(--primary); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: var(--primary); color: white; }
+  .btn-qr-close { padding: 14px 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: white; color: var(--text2); }
+  .qr-card { cursor: zoom-in; }
+  @media print {
+    .qr-enlarge-overlay { display: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -460,6 +478,20 @@
   </div>
 
   <button class="btn-exit-admin" style="margin: 0 0 32px" onclick="exitAdmin()">✕ Exit Admin Mode</button>
+</div>
+
+<!-- QR ENLARGE MODAL -->
+<div class="qr-enlarge-overlay" id="qrEnlargeOverlay" onclick="handleEnlargeOverlayClick(event)">
+  <div class="qr-enlarge-box" id="qrEnlargeBox">
+    <div class="qr-enlarge-qr" id="qrEnlargeQr"></div>
+    <div class="qr-enlarge-name" id="qrEnlargeName"></div>
+    <div class="qr-enlarge-desig" id="qrEnlargeDesig"></div>
+    <div class="qr-enlarge-id" id="qrEnlargeId"></div>
+    <div class="qr-enlarge-actions">
+      <button class="btn-qr-print" onclick="printEnlargedQr()">🖨️ Print</button>
+      <button class="btn-qr-close" onclick="closeEnlargeQr()">✕ Close</button>
+    </div>
+  </div>
 </div>
 
 <script src="libs/papaparse.min.js"></script>
@@ -1536,7 +1568,8 @@ function buildQrGrid(query) {
   list.forEach(emp => {
     const card = document.createElement('div');
     card.className = 'qr-card';
-    card.title = 'Click to enlarge (coming soon)';
+    card.title = 'Click to enlarge';
+    card.addEventListener('click', () => openEnlargeQr(emp));
     const qrDiv = document.createElement('div');
     const nameEl  = document.createElement('div'); nameEl.className = 'qr-card-name'; nameEl.textContent = emp.name;
     const desigEl = document.createElement('div'); desigEl.className = 'qr-card-desig'; desigEl.textContent = emp.designation || '';
@@ -1556,6 +1589,76 @@ function buildQrGrid(query) {
       qrInstances[emp.id] = qr;
     } catch(e) { qrDiv.textContent = emp.id; }
   });
+}
+
+// ── QR ENLARGE ────────────────────────────────────────────────────────────────
+let enlargeEmpId = null;
+
+function openEnlargeQr(emp) {
+  enlargeEmpId = emp.id;
+  // Clear previous QR
+  const qrContainer = document.getElementById('qrEnlargeQr');
+  qrContainer.innerHTML = '';
+  // Generate a large QR code
+  try {
+    new QRCode(qrContainer, {
+      text: emp.id,
+      width: 260, height: 260,
+      colorDark: '#1E293B', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } catch(e) {
+    qrContainer.textContent = emp.id;
+  }
+  document.getElementById('qrEnlargeName').textContent  = emp.name;
+  document.getElementById('qrEnlargeDesig').textContent = emp.designation || '';
+  document.getElementById('qrEnlargeId').textContent    = emp.id;
+  document.getElementById('qrEnlargeOverlay').classList.add('open');
+}
+
+function closeEnlargeQr() {
+  document.getElementById('qrEnlargeOverlay').classList.remove('open');
+  enlargeEmpId = null;
+}
+
+function handleEnlargeOverlayClick(e) {
+  // Close when clicking the backdrop (outside the box)
+  if (e.target === document.getElementById('qrEnlargeOverlay')) closeEnlargeQr();
+}
+
+function printEnlargedQr() {
+  if (!enlargeEmpId) return;
+  const emp = employees.find(e => e.id === enlargeEmpId);
+  if (!emp) return;
+  // Build a minimal print window with just this QR card
+  const qrEl = document.getElementById('qrEnlargeQr');
+  const imgEl = qrEl.querySelector('canvas, img');
+  let imgSrc = '';
+  if (imgEl && imgEl.tagName === 'CANVAS') {
+    imgSrc = imgEl.toDataURL('image/png');
+  } else if (imgEl && imgEl.tagName === 'IMG') {
+    imgSrc = imgEl.src;
+  }
+  const win = window.open('', '_blank', 'width=400,height=500');
+  win.document.write(`
+    <!DOCTYPE html><html><head><title>QR – ${emp.name}</title>
+    <style>
+      body { font-family: 'Nunito', Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #fff; }
+      .card { border: 2px solid #e2e8f0; border-radius: 16px; padding: 28px 24px; text-align: center; }
+      img { display: block; margin: 0 auto 14px; border-radius: 10px; }
+      .name  { font-size: 20px; font-weight: 800; color: #1e293b; }
+      .desig { font-size: 13px; color: #64748b; font-weight: 700; margin: 4px 0; }
+      .id    { font-size: 11px; color: #2563eb; font-weight: 700; font-family: monospace; margin-top: 6px; }
+    </style></head><body>
+    <div class="card">
+      ${imgSrc ? `<img src="${imgSrc}" width="220" height="220">` : `<p>${emp.id}</p>`}
+      <div class="name">${emp.name}</div>
+      <div class="desig">${emp.designation || ''}</div>
+      <div class="id">${emp.id}</div>
+    </div>
+    <script>window.onload=()=>{ window.print(); window.close(); }<\/script>
+    </body></html>`);
+  win.document.close();
 }
 
 // ── SETUP (disabled) ──────────────────────────────────────────────────────────
