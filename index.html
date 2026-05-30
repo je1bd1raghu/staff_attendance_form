@@ -718,7 +718,7 @@ async function fetchConfig() {
 async function fetchTodayRecords() {
   try {
     const records = await attGet();
-    todayRecs     = records.filter(r => r.date === todayStr());
+    todayRecs     = records.filter(r => r.date === shiftDateStr());
     renderRecords();
     renderAdminRecords();
   } catch { todayRecs = []; renderRecords(); renderAdminRecords(); }
@@ -883,7 +883,7 @@ function updateBtns() {
   if (!locVerified || !id) { disableBtns(); return; }
   // All records for this employee today, sorted oldest-first
   const empRecs = todayRecs
-    .filter(r => r.employeeId === id && r.date === todayStr())
+    .filter(r => r.employeeId === id && r.date === shiftDateStr())
     .sort((a, b) => (a.checkInTimestamp || '').localeCompare(b.checkInTimestamp || ''));
   const lastRec       = empRecs.length ? empRecs[empRecs.length - 1] : null;
   const completedSess = empRecs.filter(r => r.checkIn && r.checkOut).length;
@@ -922,7 +922,7 @@ async function doCheckIn() {
   if (!locVerified) { showToast('Location not verified', 'error'); return; }
   const emp = getEmp(); if (!emp) return;
   const now = new Date();
-  const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '', date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceId: deviceId };
+  const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '', date: shiftDateStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceId: deviceId };
   await withBtnLoad('btnIn', async () => {
     await appendRecord(rec);
     todayRecs.push(rec);
@@ -933,7 +933,7 @@ async function doCheckIn() {
 async function doCheckOut() {
   if (!locVerified) { showToast('Location not verified', 'error'); return; }
   const emp = getEmp(); if (!emp) return;
-  const rec = todayRecs.find(r => r.employeeId === emp.id && r.date === todayStr() && !r.checkOut);
+  const rec = todayRecs.find(r => r.employeeId === emp.id && r.date === shiftDateStr() && !r.checkOut);
   if (!rec) { showToast('No active check-in found', 'error'); return; }
   const now = new Date();
   rec.checkOut = timeStr(now); rec.checkOutTimestamp = now.toISOString();
@@ -973,7 +973,7 @@ async function appendRecord(rec) {
 
 async function saveAll() {
   const allRecs = await attGet().catch(() => []);
-  const today   = todayStr();
+  const today   = shiftDateStr();
   const others  = allRecs.filter(r => r.date !== today);
   await attPatch([...others, ...todayRecs]);
 }
@@ -1014,6 +1014,17 @@ function recordHTML(r) {
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function getEmp()    { const id = document.getElementById('empSelect').value; return employees.find(e => e.id === id) || null; }
 function todayStr()  { const d = new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+
+// ── SHIFT DATE ────────────────────────────────────────────────────────────────
+// A "workday" runs from ~sunrise to next sunrise. Any time between midnight and
+// SHIFT_CUTOFF_HOUR (04:00) is still considered part of the *previous* calendar
+// day's shift — so overnight check-outs are matched to their check-in date.
+const SHIFT_CUTOFF_HOUR = 4;   // 04:00 — adjust if your site has earlier starts
+function shiftDateStr() {
+  const d = new Date();
+  if (d.getHours() < SHIFT_CUTOFF_HOUR) d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
 function timeStr(d)  { return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
 
 let toastTmr;
@@ -1301,7 +1312,7 @@ function updateAdminActionBtns() {
       const emp = employees.find(e => e.id === scannedEmpId);
       if (emp) {
         const empRecs = todayRecs
-          .filter(r => r.employeeId === emp.id && r.date === todayStr())
+          .filter(r => r.employeeId === emp.id && r.date === shiftDateStr())
           .sort((a, b) => (a.checkInTimestamp || '').localeCompare(b.checkInTimestamp || ''));
         const lastRec       = empRecs.length ? empRecs[empRecs.length - 1] : null;
         const completedSess = empRecs.filter(r => r.checkIn && r.checkOut).length;
@@ -1433,7 +1444,7 @@ function onQrDetected(data) {
 
   // Find records for today, sorted oldest-first
   const empRecs = todayRecs
-    .filter(r => r.employeeId === emp.id && r.date === todayStr())
+    .filter(r => r.employeeId === emp.id && r.date === shiftDateStr())
     .sort((a, b) => (a.checkInTimestamp || '').localeCompare(b.checkInTimestamp || ''));
   const lastRec       = empRecs.length ? empRecs[empRecs.length - 1] : null;
   const completedSess = empRecs.filter(r => r.checkIn && r.checkOut).length;
@@ -1477,7 +1488,7 @@ async function adminDoIn() {
     : 'ADMIN';
   const rec = {
     employeeId: emp.id, name: emp.name, designation: emp.designation || '',
-    date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(),
+    date: shiftDateStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(),
     checkOut: null, checkOutTimestamp: null,
     location: locLabel, lat: loc ? loc.lat : '', lng: loc ? loc.lng : '',
     deviceId: deviceIdVal
@@ -1515,7 +1526,7 @@ async function adminDoOut() {
   document.getElementById('btnScanOut').innerHTML = '<span class="spinner"></span>';
   try {
     const allRecs = await attGet().catch(() => []);
-    const today   = todayStr();
+    const today   = shiftDateStr();
     const idx     = allRecs.findIndex(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
     if (idx < 0) throw new Error('No active check-in found for ' + emp.name);
     const now = new Date();
