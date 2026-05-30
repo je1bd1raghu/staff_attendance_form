@@ -544,20 +544,11 @@
 <script src="libs/jsQR.js"></script>
 
 <script>
-const GIST_API    = 'https://api.github.com/gists/';
-const GIST_RAW    = 'https://gist.githubusercontent.com/je1bd1raghu/';
 const CONFIG_FILE = 'config.json';
 const ATT_FILE    = 'attendance.csv';
 const WORKER_URL  = 'https://attendance-proxy.je1-bd1-raghu.workers.dev/';
-
-// ── HARDCODED CONFIG ──────────────────────────────────────────────────────────
-const cfg = Object.freeze({
-  token:            atob('Z2hwX1NUMk9mMlh1bjdYTnFtOTJhQW5pQUl6Z2oyMnNweTE2eE1kUQ=='),
-  configGistId:     atob('OTMyNjYwMTBiMjNmM2Y5ZmRjMjIzMGFjZDU2ZWJjOTI='),
-  attendanceGistId: atob('NmIxYWE4ZjFmYjQ1NmQ5M2Y2MDNjNWFiNTQ5MzFiYzY='),
-  // Admin PIN is validated server-side by the Cloudflare Worker (env.ADMIN_PIN).
-  // It is NOT stored here or in any public file.
-});
+// All GitHub credentials live in Cloudflare Worker secrets.
+// The client never holds a token or gist ID.
 
 let employees   = [];
 let locations   = [];
@@ -664,8 +655,7 @@ function csvParse(text) {
 }
 
 async function attGet() {
-  const url = GIST_RAW + cfg.attendanceGistId + '/raw/' + ATT_FILE + '?t=' + Date.now();
-  const r   = await fetch(url);
+  const r = await fetch(WORKER_URL + 'attendance?t=' + Date.now());
   if (!r.ok) return [];
   return csvParse(await r.text());
 }
@@ -691,7 +681,7 @@ async function _doPatch(records) {
   // verifiedPin holds the raw value only for the duration of the admin session;
   // it is cleared on exitAdmin(). We never store it in localStorage or logs.
   if (isAdmin && verifiedPin) body.adminPin = verifiedPin;
-  const r = await fetch(WORKER_URL + cfg.attendanceGistId, {
+  const r = await fetch(WORKER_URL + 'attendance', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -707,16 +697,15 @@ async function _doPatch(records) {
   // (~1–2 s) because each caller does a fresh attGet() immediately before writing.
 }
 
-async function gistRawGet(gistId, filename) {
-  const url = GIST_RAW + gistId + '/raw/' + filename + '?t=' + Date.now();
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('HTTP ' + r.status + ' fetching ' + filename);
+async function workerGet(path) {
+  const r = await fetch(WORKER_URL + path + '?t=' + Date.now());
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' fetching ' + path);
   return r.json();
 }
 
 async function fetchConfig() {
   try {
-    const data = await gistRawGet(cfg.configGistId, CONFIG_FILE);
+    const data = await workerGet('config');
     employees  = data.employees || [];
     locations  = data.locations  || [];
     populateEmployees();
