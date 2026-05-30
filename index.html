@@ -199,7 +199,9 @@
   /* Admin PIN overlay */
   .pin-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.75); z-index: 300; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
   .pin-overlay.open { opacity: 1; pointer-events: all; }
-  .pin-box { background: white; border-radius: 24px; padding: 32px 28px; width: min(380px, 92vw); text-align: center; }
+  .pin-box { background: white; border-radius: 24px; padding: 32px 28px; width: min(380px, 92vw); text-align: center; position: relative; }
+  .pin-close { position: absolute; top: 16px; right: 16px; background: var(--surface2); border: none; border-radius: 8px; width: 32px; height: 32px; font-size: 16px; cursor: pointer; color: var(--text2); display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+  .pin-close:hover { background: var(--danger-light); color: var(--danger); }
   .pin-icon { font-size: 48px; margin-bottom: 12px; }
   .pin-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
   .pin-sub { font-size: 14px; color: var(--text2); margin-bottom: 28px; }
@@ -214,50 +216,65 @@
   .pin-key.cancel { font-size: 15px; color: var(--text3); grid-column: 1; }
   .pin-key.submit { font-size: 20px; color: white; background: var(--admin); border-color: var(--admin); }
 
-  /* QR print page */
-  .qr-print-overlay { position: fixed; inset: 0; background: white; z-index: 500; overflow-y: auto; display: none; }
+  /* ID card page */
+  .qr-print-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 500; overflow-y: auto; display: none; }
   .qr-print-overlay.open { display: block; }
-  .qr-print-header { background: linear-gradient(135deg, #212529 0%, #343a40 100%); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .qr-print-header { background: linear-gradient(135deg, #212529 0%, #343a40 100%); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
   .qr-print-header h2 { font-size: 18px; font-weight: 800; }
   .qr-print-header button { background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 8px; padding: 8px 16px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; }
-  .qr-print-body { padding: 16px; }
-  .qr-search-bar { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 15px; margin-bottom: 16px; outline: none; }
+  .qr-print-body { padding: 16px; max-width: 600px; margin: 0 auto; }
+  .qr-search-bar { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 15px; margin-bottom: 12px; outline: none; background: white; }
   .qr-search-bar:focus { border-color: var(--primary); }
-  .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
-  .qr-card { border: 2px solid var(--border); border-radius: 12px; padding: 20px 16px; text-align: center; cursor: pointer; transition: border-color 0.15s; }
-  .qr-card:hover { border-color: var(--primary); }
-  .qr-card canvas { display: block; margin: 0 auto 10px; border-radius: 8px; }
-  .qr-card-name { font-size: 13px; font-weight: 800; color: var(--text); line-height: 1.3; }
-  .qr-card-desig { font-size: 11px; color: var(--text3); font-weight: 600; margin-top: 3px; line-height: 1.3; }
-  .qr-card-id { font-size: 10px; color: var(--primary); font-weight: 700; margin-top: 4px; font-family: monospace; }
-  .btn-print-all { width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 800; cursor: pointer; margin-bottom: 16px; }
+  .emp-list { display: flex; flex-direction: column; gap: 2px; }
+  .emp-list-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: white; border-radius: var(--radius-sm); cursor: pointer; transition: background 0.12s, transform 0.1s; border: 2px solid transparent; }
+  .emp-list-item:hover { background: var(--primary-light); border-color: var(--primary); transform: translateX(3px); }
+  .emp-list-avatar { width: 42px; height: 42px; border-radius: 12px; background: var(--primary); color: white; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .emp-list-info { flex: 1; min-width: 0; }
+  .emp-list-name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .emp-list-desig { font-size: 12px; color: var(--text3); font-weight: 600; margin-top: 2px; }
+  .emp-list-id { font-size: 11px; color: var(--primary); font-weight: 700; font-family: monospace; margin-top: 2px; }
+  .emp-list-arrow { font-size: 18px; color: var(--text3); flex-shrink: 0; }
+  .emp-list-empty { text-align: center; padding: 32px; color: var(--text3); font-weight: 700; font-size: 14px; }
+
+  /* ID card modal */
+  .id-card-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.75); z-index: 600; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+  .id-card-overlay.open { opacity: 1; pointer-events: all; }
+  .id-card { background: white; border-radius: 20px; width: min(360px, 100%); overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.35); transform: scale(0.88); transition: transform 0.28s cubic-bezier(0.34,1.3,0.64,1); }
+  .id-card-overlay.open .id-card { transform: scale(1); }
+  .id-card-header { background: linear-gradient(135deg, #212529 0%, #343a40 100%); padding: 20px 20px 14px; position: relative; }
+  .id-card-org { font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 2px; }
+  .id-card-title { font-size: 16px; font-weight: 800; color: white; }
+  .id-card-close { position: absolute; top: 14px; right: 14px; background: rgba(255,255,255,0.15); border: none; border-radius: 8px; width: 30px; height: 30px; font-size: 14px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; }
+  .id-card-close:hover { background: rgba(255,255,255,0.3); }
+  .id-card-body { padding: 20px; display: flex; gap: 16px; align-items: flex-start; }
+  .id-card-avatar { width: 64px; height: 64px; border-radius: 14px; background: var(--primary); color: white; font-size: 22px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .id-card-info { flex: 1; min-width: 0; }
+  .id-card-name { font-size: 18px; font-weight: 800; color: var(--text); line-height: 1.2; }
+  .id-card-desig { font-size: 13px; color: var(--primary); font-weight: 700; margin-top: 4px; }
+  .id-card-empid { font-size: 12px; color: var(--text3); font-weight: 700; font-family: monospace; margin-top: 6px; letter-spacing: 0.5px; }
+  .id-card-divider { height: 1px; background: var(--border); margin: 0 20px; }
+  .id-card-qr-section { padding: 16px 20px 8px; display: flex; flex-direction: column; align-items: center; }
+  .id-card-qr-wrap { background: var(--surface2); border-radius: 14px; padding: 14px; display: inline-flex; }
+  .id-card-qr-wrap canvas, .id-card-qr-wrap img { display: block; border-radius: 8px; }
+  .id-card-stamp { font-size: 10px; color: var(--text3); font-weight: 600; margin-top: 10px; letter-spacing: 0.3px; text-align: center; }
+  .id-card-footer { padding: 16px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .btn-id-print { padding: 14px 10px; border: none; border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: var(--primary); color: white; }
+  .btn-id-close  { padding: 14px 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: white; color: var(--text2); }
+
+  /* Slot picker */
+  .slot-picker { display: none; padding: 16px 20px 4px; border-top: 1px solid var(--border); }
+  .slot-picker.open { display: block; }
+  .slot-picker-label { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
+  .slot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 140px; margin: 0 auto 10px; }
+  .slot-cell { aspect-ratio: 85/54; border: 2px dashed var(--border); border-radius: 6px; cursor: pointer; background: var(--surface2); transition: all 0.15s; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--text3); }
+  .slot-cell:hover { border-color: var(--primary); background: var(--primary-light); color: var(--primary); transform: scale(1.06); }
+  .slot-cell.selected { border-color: var(--primary); background: var(--primary); color: white; transform: scale(1.06); }
   @media print {
-    .qr-print-header { display: none; }
-    .qr-search-bar, .btn-print-all { display: none; }
-    .qr-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .qr-card { break-inside: avoid; }
+    .qr-print-overlay, .id-card-overlay { display: none !important; }
   }
 
   /* Admin exit btn */
   .btn-exit-admin { width: 100%; padding: 14px; border: 2px solid var(--danger); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 800; cursor: pointer; background: white; color: var(--danger); margin-top: 8px; }
-
-  /* QR Enlarge Modal */
-  .qr-enlarge-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.82); z-index: 600; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; padding: 24px; }
-  .qr-enlarge-overlay.open { opacity: 1; pointer-events: all; }
-  .qr-enlarge-box { background: white; border-radius: 24px; padding: 32px 28px 28px; text-align: center; max-width: 340px; width: 100%; transform: scale(0.88); transition: transform 0.28s cubic-bezier(0.34,1.3,0.64,1); box-shadow: 0 24px 64px rgba(0,0,0,0.3); }
-  .qr-enlarge-overlay.open .qr-enlarge-box { transform: scale(1); }
-  .qr-enlarge-qr { display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
-  .qr-enlarge-qr canvas, .qr-enlarge-qr img { border-radius: 12px; }
-  .qr-enlarge-name { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1.3; margin-bottom: 4px; }
-  .qr-enlarge-desig { font-size: 13px; color: var(--text2); font-weight: 700; margin-bottom: 6px; }
-  .qr-enlarge-id { font-size: 12px; color: var(--primary); font-weight: 700; font-family: monospace; margin-bottom: 22px; letter-spacing: 0.5px; }
-  .qr-enlarge-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .btn-qr-print { padding: 14px 10px; border: 2px solid var(--primary); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: var(--primary); color: white; }
-  .btn-qr-close { padding: 14px 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: white; color: var(--text2); }
-  .qr-card { cursor: zoom-in; }
-  @media print {
-    .qr-enlarge-overlay { display: none !important; }
-  }
 </style>
 </head>
 <body>
@@ -275,9 +292,10 @@
 <!-- ADMIN PIN OVERLAY -->
 <div class="pin-overlay" id="pinOverlay">
   <div class="pin-box">
-    <div class="pin-icon">🔐</div>
-    <div class="pin-title">Admin Access</div>
-    <div class="pin-sub">Enter your PIN to continue</div>
+    <button class="pin-close" onclick="closePinOverlay()" title="Close">✕</button>
+    <div class="pin-icon" id="pinIcon">🔐</div>
+    <div class="pin-title" id="pinTitle">Admin Access</div>
+    <div class="pin-sub" id="pinSub">Enter your PIN to continue</div>
     <div class="pin-dots" id="pinDots"></div>
     <div class="pin-keypad" id="pinKeypad">
       <button class="pin-key" onclick="pinKey('1')">1</button>
@@ -297,16 +315,52 @@
   </div>
 </div>
 
-<!-- QR PRINT OVERLAY -->
+<!-- ID CARD LIST OVERLAY -->
 <div class="qr-print-overlay" id="qrPrintOverlay">
   <div class="qr-print-header">
-    <h2>🖨️ Employee QR Codes</h2>
+    <h2>🪪 Employee ID Cards</h2>
     <button onclick="closeQrPrint()">✕ Close</button>
   </div>
   <div class="qr-print-body">
-    <button class="btn-print-all" onclick="window.print()">🖨️ Print All QR Codes</button>
     <input type="text" class="qr-search-bar" id="qrSearchInput" placeholder="🔍  Search employee…" oninput="filterQrGrid()">
-    <div class="qr-grid" id="qrGrid"></div>
+    <div class="emp-list" id="qrGrid"></div>
+  </div>
+</div>
+
+<!-- ID CARD MODAL -->
+<div class="id-card-overlay" id="idCardOverlay" onclick="handleIdCardOverlayClick(event)">
+  <div class="id-card" id="idCardBox">
+    <div class="id-card-header">
+      <div class="id-card-title">Employee ID Card</div>
+      <button class="id-card-close" onclick="closeIdCard()">✕</button>
+    </div>
+    <div class="id-card-body">
+      <div class="id-card-avatar" id="idCardAvatar"></div>
+      <div class="id-card-info">
+        <div class="id-card-name"  id="idCardName"></div>
+        <div class="id-card-desig" id="idCardDesig"></div>
+        <div class="id-card-empid" id="idCardEmpId"></div>
+      </div>
+    </div>
+    <div class="id-card-divider"></div>
+    <div class="id-card-qr-section">
+      <div class="id-card-qr-wrap" id="idCardQr"></div>
+      <div class="id-card-stamp"   id="idCardStamp"></div>
+    </div>
+    <!-- Slot picker: shown when Print is clicked -->
+    <div class="slot-picker" id="slotPicker">
+      <div class="slot-picker-label">Choose slot on A4 sheet</div>
+      <div class="slot-grid">
+        <div class="slot-cell" data-slot="0" onclick="selectSlot(0)" title="Top-left">TL</div>
+        <div class="slot-cell" data-slot="1" onclick="selectSlot(1)" title="Top-right">TR</div>
+        <div class="slot-cell" data-slot="2" onclick="selectSlot(2)" title="Bottom-left">BL</div>
+        <div class="slot-cell" data-slot="3" onclick="selectSlot(3)" title="Bottom-right">BR</div>
+      </div>
+    </div>
+    <div class="id-card-footer">
+      <button class="btn-id-print" id="btnIdPrint" onclick="toggleSlotPicker()">🖨️ Print ID Card</button>
+      <button class="btn-id-close"  onclick="closeIdCard()">✕ Close</button>
+    </div>
   </div>
 </div>
 
@@ -315,6 +369,8 @@
   <p id="headerDate">Loading…</p>
   <h1>Staff Attendance</h1>
   <div class="header-right">
+    <button class="icon-btn" id="dlBtn" title="Download Records" onclick="openDownloadSheet()">📥</button>
+    <button class="icon-btn" id="qrPrintBtn" title="Print QR Codes" onclick="openQrPrint()">🖨️</button>
     <button class="icon-btn" id="adminBtn" title="Admin mode" onclick="handleAdminBtn()">🛡️</button>
   </div>
 </div>
@@ -438,13 +494,6 @@
     <button class="btn-rescan" id="btnRescan" style="display:none" onclick="resumeScanner()">↩ Scan Another</button>
   </div>
 
-  <!-- QR Print card -->
-  <div class="card">
-    <div class="section-title">QR Code Management</div>
-    <p style="font-size:13px;color:var(--text2);font-weight:600;margin-bottom:14px;line-height:1.6;">Print QR codes for employees who don't have a smartphone. Give them their personal QR card — admin scans it to mark attendance.</p>
-    <button class="btn-save" onclick="openQrPrint()" style="background:var(--admin)">🖨️ Print Employee QR Codes</button>
-  </div>
-
   <!-- Today's records (admin view) -->
   <div class="card">
     <div class="section-title">Today's Attendance</div>
@@ -453,13 +502,21 @@
     </div>
   </div>
 
-  <!-- Download records -->
-  <div class="card" id="downloadCard">
-    <div class="section-title">Download Records</div>
-    <p style="font-size:13px;color:var(--text2);font-weight:600;margin-bottom:14px;line-height:1.6;">Download all raw attendance data, or a monthly summary with days present, total duty hours, and average daily hours per employee.</p>
+  <button class="btn-exit-admin" style="margin: 0 0 32px" onclick="exitAdmin()">✕ Exit Admin Mode</button>
+</div>
 
-    <div class="field-label" style="margin-bottom:6px">Summary month</div>
-    <select id="summaryMonthSel" style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;color:var(--text);background:white;margin-bottom:16px;appearance:auto">
+<!-- DOWNLOAD SHEET -->
+<div class="overlay" id="downloadOverlay" onclick="handleDownloadOverlayClick(event)">
+  <div class="modal" id="downloadModal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div class="modal-title">📥 Download Records</div>
+      <button class="pin-close" style="position:static;margin-left:8px;" onclick="closeDownloadSheet()" title="Close">✕</button>
+    </div>
+    <div class="modal-sub">Download all raw attendance data, or a monthly summary with days present, total duty hours, and average daily hours per employee.</div>
+
+    <div class="field-label" style="margin-bottom:6px;">Summary month</div>
+    <select id="summaryMonthSel" style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;color:var(--text);background:white;margin-bottom:20px;appearance:auto">
       <option value="">All months</option>
     </select>
 
@@ -476,23 +533,8 @@
       </button>
     </div>
   </div>
-
-  <button class="btn-exit-admin" style="margin: 0 0 32px" onclick="exitAdmin()">✕ Exit Admin Mode</button>
 </div>
 
-<!-- QR ENLARGE MODAL -->
-<div class="qr-enlarge-overlay" id="qrEnlargeOverlay" onclick="handleEnlargeOverlayClick(event)">
-  <div class="qr-enlarge-box" id="qrEnlargeBox">
-    <div class="qr-enlarge-qr" id="qrEnlargeQr"></div>
-    <div class="qr-enlarge-name" id="qrEnlargeName"></div>
-    <div class="qr-enlarge-desig" id="qrEnlargeDesig"></div>
-    <div class="qr-enlarge-id" id="qrEnlargeId"></div>
-    <div class="qr-enlarge-actions">
-      <button class="btn-qr-print" onclick="printEnlargedQr()">🖨️ Print</button>
-      <button class="btn-qr-close" onclick="closeEnlargeQr()">✕ Close</button>
-    </div>
-  </div>
-</div>
 
 <script src="libs/papaparse.min.js"></script>
 <script src="libs/fp.min.js"></script>
@@ -531,12 +573,14 @@ let verifiedPin = null;  // PIN confirmed by server; held in memory for the sess
 let isAdmin          = false;
 let adminLocId       = null;    // selected location id in admin mode
 let scannedEmpId     = null;    // EMP id from last scan
+let scannedPrintedAt = null;    // ISO printedAt from QR payload (null for legacy QRs)
 let adminWatchId     = null;    // geolocation watchId for admin GPS
 let adminCurrentPos  = null;    // admin's live GPS position
 let adminLocVerified = false;   // true when admin is within tolerance of selected location
 let scannerStream    = null;
 let scannerAnimFrame = null;
 let scannerPaused    = false;
+let qrInstances      = {};
 
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
@@ -677,6 +721,7 @@ async function fetchConfig() {
     locations  = data.locations  || [];
     populateEmployees();
     populateAdminLocs();
+    await buildUuidLookup();   // pre-compute UUID→employeeId map for scanner
     return true;
   } catch(e) { showToast('Config error: ' + e.message, 'error'); return false; }
 }
@@ -840,27 +885,43 @@ function resetLoc() {
 }
 
 // ── BUTTONS ───────────────────────────────────────────────────────────────────
+const MAX_CHECKINS_PER_DAY = 2;
+
 function updateBtns() {
   const id  = document.getElementById('empSelect').value;
   const btnIn  = document.getElementById('btnIn');
   const btnOut = document.getElementById('btnOut');
   if (!locVerified || !id) { disableBtns(); return; }
-  // Find the most recent record for today (the last one for this employee)
-  const empRecs = todayRecs.filter(r => r.employeeId === id && r.date === todayStr());
-  const lastRec = empRecs.length ? empRecs[empRecs.length - 1] : null;
+  // All records for this employee today, sorted oldest-first
+  const empRecs = todayRecs
+    .filter(r => r.employeeId === id && r.date === todayStr())
+    .sort((a, b) => (a.checkInTimestamp || '').localeCompare(b.checkInTimestamp || ''));
+  const lastRec       = empRecs.length ? empRecs[empRecs.length - 1] : null;
+  const completedSess = empRecs.filter(r => r.checkIn && r.checkOut).length;
+  const hasOpenRec    = lastRec && lastRec.checkIn && !lastRec.checkOut;
+
   if (!lastRec) {
-    // No record yet: allow check-in
+    // No session yet — allow first check-in
     btnIn.disabled  = false;
     btnOut.disabled = true;
-  } else if (lastRec.checkIn && !lastRec.checkOut) {
-    // Currently checked in: allow check-out only
+  } else if (hasOpenRec) {
+    // Currently checked in — allow check-out
     btnIn.disabled  = true;
     btnOut.disabled = false;
-  } else {
-    // Last record has both check-in and check-out: allow another check-in (lunch return etc.)
+  } else if (completedSess < MAX_CHECKINS_PER_DAY) {
+    // Has completed sessions but under the cap — allow another check-in
     btnIn.disabled  = false;
     btnOut.disabled = true;
+  } else {
+    // Hit the daily cap — lock both
+    btnIn.disabled  = true;
+    btnOut.disabled = true;
+    btnIn.title  = 'Maximum ' + MAX_CHECKINS_PER_DAY + ' check-ins per day reached';
+    btnOut.title = '';
+    return;
   }
+  btnIn.title  = '';
+  btnOut.title = '';
 }
 function disableBtns() {
   document.getElementById('btnIn').disabled  = true;
@@ -911,10 +972,12 @@ async function appendRecord(rec) {
     const openDevRec = records.find(r => r.date === rec.date && r.deviceId === rec.deviceId && r.checkIn && !r.checkOut && r.employeeId !== rec.employeeId);
     if (openDevRec) throw new Error('Another employee (' + openDevRec.name + ') is currently checked in from this device');
   }
-  // Allow multiple check-ins per day (e.g. after lunch break)
-  // Just ensure there is no currently open (no checkout) record for this employee
+  // Block if already checked in (open record)
   const openRec = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && !r.checkOut);
   if (openRec) throw new Error(rec.name + ' is already checked in — please check out first');
+  // Enforce daily cap
+  const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
+  if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
   records.push(rec);
   await attPatch(records);
 }
@@ -947,7 +1010,15 @@ function recordHTML(r) {
   const desig = r.designation ? `<div class="record-desig">🏷️ ${r.designation}</div>` : '';
   const inC   = r.checkIn  ? `<span class="time-chip chip-in">▲ ${r.checkIn}</span>` : '';
   const outC  = r.checkOut ? `<span class="time-chip chip-out">▼ ${r.checkOut}</span>` : (r.checkIn ? '<span class="time-chip chip-pending">⏳ Active</span>' : '');
-  const adminC= r.deviceId === 'ADMIN' ? '<span class="time-chip chip-admin">🛡️ Admin scan</span>' : '';
+  let adminC = '';
+  if (r.deviceId && r.deviceId.startsWith('ADMIN')) {
+    // deviceId is either "ADMIN" (legacy) or "ADMIN|QR Printed on <datetime>"
+    const parts    = r.deviceId.split('|');
+    const printLabel = parts[1] || '';   // e.g. "QR Printed on Mon, 2 Jun 2025 14:32:07"
+    const tooltip    = printLabel ? ` title="${printLabel}"` : '';
+    adminC = `<span class="time-chip chip-admin"${tooltip}>🛡️ Admin${printLabel ? ' · 🖨️' : ''}</span>`;
+    if (printLabel) adminC += `<span class="time-chip chip-admin" style="font-size:9px;opacity:0.85">${printLabel.replace('QR Printed on ','')}</span>`;
+  }
   return `<div class="record-item"><div class="record-avatar">${init}</div><div class="record-info"><div class="record-name">${r.name}</div>${desig}<div class="record-loc">📍 ${r.location||'—'}</div></div><div class="record-times">${inC}${outC}${adminC}</div></div>`;
 }
 
@@ -971,17 +1042,32 @@ function showToast(msg, type='') {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // ── PIN ───────────────────────────────────────────────────────────────────────
-let pinBuffer = '';
+let pinBuffer  = '';
+let pinPurpose = 'admin';   // 'admin' | 'qr'
 
 function handleAdminBtn() {
   if (isAdmin) { exitAdmin(); return; }
-  openPinOverlay();
+  openPinOverlay('admin');
 }
 
-function openPinOverlay() {
-  pinBuffer = '';
+function openPinOverlay(purpose = 'admin') {
+  pinPurpose = purpose;
+  pinBuffer  = '';
   renderPinDots();
   document.getElementById('pinSubmit').disabled = true;
+  if (purpose === 'qr') {
+    document.getElementById('pinIcon').textContent  = '🖨️';
+    document.getElementById('pinTitle').textContent = 'Print QR Codes';
+    document.getElementById('pinSub').textContent   = 'Enter admin PIN to access QR printing';
+  } else if (purpose === 'download') {
+    document.getElementById('pinIcon').textContent  = '📥';
+    document.getElementById('pinTitle').textContent = 'Download Records';
+    document.getElementById('pinSub').textContent   = 'Enter admin PIN to download attendance data';
+  } else {
+    document.getElementById('pinIcon').textContent  = '🔐';
+    document.getElementById('pinTitle').textContent = 'Admin Access';
+    document.getElementById('pinSub').textContent   = 'Enter your PIN to continue';
+  }
   document.getElementById('pinOverlay').classList.add('open');
 }
 
@@ -1040,12 +1126,16 @@ function submitPin() {
     document.getElementById('pinSubmit').textContent = '✓ Confirm PIN';
     if (ok) {
       verifiedPin = pin;
-      // Security note: verifiedPin holds the raw PIN for the admin session lifetime.
-      // It is cleared on exitAdmin() and never written to storage.
-      // A stronger approach would be to exchange the PIN for a short-lived
-      // server-issued token here and store that instead — requires worker changes.
       closePinOverlay();
-      enterAdmin();
+      if (pinPurpose === 'qr') {
+        startAdminTimer();
+        _openQrPrintDirect();
+      } else if (pinPurpose === 'download') {
+        startAdminTimer();
+        _openDownloadSheetDirect();
+      } else {
+        enterAdmin();   // enterAdmin() calls startAdminTimer() itself
+      }
     } else {
       renderPinDots(true);
       setTimeout(() => { pinBuffer = ''; renderPinDots(); document.getElementById('pinSubmit').disabled = true; }, 700);
@@ -1062,6 +1152,41 @@ function submitPin() {
 }
 
 // ── ENTER / EXIT ADMIN ────────────────────────────────────────────────────────
+const ADMIN_SESSION_MS = 5 * 60 * 1000;   // 5 minutes
+let   _adminTimer      = null;
+
+function startAdminTimer() {
+  clearTimeout(_adminTimer);
+  _adminTimer = setTimeout(() => {
+    showToast('⏱️ Admin session expired — please re-authenticate', 'warning');
+    revokeAdminSession();
+  }, ADMIN_SESSION_MS);
+}
+
+function resetAdminTimer() {
+  if (_adminTimer !== null) startAdminTimer();   // only reset if a session is active
+}
+
+function revokeAdminSession() {
+  clearTimeout(_adminTimer);
+  _adminTimer = null;
+  // Close any open privileged sheets first
+  document.getElementById('qrPrintOverlay').classList.remove('open');
+  document.getElementById('downloadOverlay').classList.remove('open');
+  // Exit full admin mode if active
+  if (isAdmin) {
+    isAdmin = false;
+    stopAdminWatch();
+    stopScanner();
+    scannedEmpId     = null;
+    scannedPrintedAt = null;
+    document.getElementById('adminView').style.display    = 'none';
+    document.getElementById('employeeView').style.display = 'block';
+    document.getElementById('adminBtn').classList.remove('admin-active');
+  }
+  verifiedPin = null;
+}
+
 function enterAdmin() {
   isAdmin = true;
   document.getElementById('employeeView').style.display = 'none';
@@ -1069,18 +1194,20 @@ function enterAdmin() {
   document.getElementById('adminBtn').classList.add('admin-active');
   renderAdminRecords();
   populateAdminLocs();
-  populateSummaryMonths();
-  startAdminWatch();           // begin GPS tracking for admin location verification
-  // Camera is OFF by default — admin must press the button to start it
+  startAdminWatch();
   resetCameraToggleBtn();
+  startAdminTimer();
 }
 
 function exitAdmin() {
+  clearTimeout(_adminTimer);
+  _adminTimer = null;
   isAdmin = false;
-  verifiedPin = null;   // forget PIN when leaving admin mode
-  stopAdminWatch();     // release GPS watcher
+  verifiedPin = null;
+  stopAdminWatch();
   stopScanner();
-  scannedEmpId = null;
+  scannedEmpId     = null;
+  scannedPrintedAt = null;
   document.getElementById('adminView').style.display    = 'none';
   document.getElementById('employeeView').style.display = 'block';
   document.getElementById('adminBtn').classList.remove('admin-active');
@@ -1184,13 +1311,22 @@ function updateAdminActionBtns() {
     if (scannedEmpId) {
       const emp = employees.find(e => e.id === scannedEmpId);
       if (emp) {
-        // Find the most recent record for today
-        const empRecs = todayRecs.filter(r => r.employeeId === emp.id && r.date === todayStr());
-        const lastRec = empRecs.length ? empRecs[empRecs.length - 1] : null;
-        const hasOpenRec = lastRec && lastRec.checkIn && !lastRec.checkOut;
-        // Allow check-in when no open record; allow check-out when there is one
-        btnIn.disabled  = hasOpenRec;
-        btnOut.disabled = !hasOpenRec;
+        const empRecs = todayRecs
+          .filter(r => r.employeeId === emp.id && r.date === todayStr())
+          .sort((a, b) => (a.checkInTimestamp || '').localeCompare(b.checkInTimestamp || ''));
+        const lastRec       = empRecs.length ? empRecs[empRecs.length - 1] : null;
+        const completedSess = empRecs.filter(r => r.checkIn && r.checkOut).length;
+        const hasOpenRec    = lastRec && lastRec.checkIn && !lastRec.checkOut;
+        if (hasOpenRec) {
+          btnIn.disabled  = true;
+          btnOut.disabled = false;
+        } else if (completedSess < MAX_CHECKINS_PER_DAY) {
+          btnIn.disabled  = false;
+          btnOut.disabled = true;
+        } else {
+          btnIn.disabled  = true;   // daily cap reached
+          btnOut.disabled = true;
+        }
       }
     }
   }
@@ -1271,8 +1407,9 @@ function tickScanner() {
 }
 
 function resumeScanner() {
-  scannerPaused = false;
-  scannedEmpId  = null;
+  scannerPaused    = false;
+  scannedEmpId     = null;
+  scannedPrintedAt = null;
   document.getElementById('scanPreview').classList.remove('visible');
   document.getElementById('scanActionRow').style.display = 'none';
   document.getElementById('btnRescan').style.display     = 'none';
@@ -1285,8 +1422,15 @@ function resumeScanner() {
 }
 
 function onQrDetected(data) {
-  // data should be an employee id like "EMP001"
-  const emp = employees.find(e => e.id === data.trim());
+  // Payload format: "<uuid>|<ISO-printedAt>"  or legacy plain employeeId
+  const trimmed = data.trim();
+  const pipeIdx = trimmed.indexOf('|');
+  const uuidPart      = pipeIdx >= 0 ? trimmed.slice(0, pipeIdx) : trimmed;
+  const printedAtPart = pipeIdx >= 0 ? trimmed.slice(pipeIdx + 1) : null;
+
+  // Resolve UUID → employeeId, fall back to legacy direct ID
+  const empId = _uuidToEmpId[uuidPart] || uuidPart;
+  const emp = employees.find(e => e.id === empId);
   if (!emp) {
     document.getElementById('qrScanStatus').textContent = '⚠️ Unknown QR: ' + data;
     scannerAnimFrame = requestAnimationFrame(tickScanner);
@@ -1294,29 +1438,36 @@ function onQrDetected(data) {
   }
   // Pause scanner
   scannerPaused = true;
-  scannedEmpId  = emp.id;
+  scannedEmpId       = emp.id;
+  scannedPrintedAt   = printedAtPart;
+  resetAdminTimer();
 
-  // Find the most recent record for today
-  const empRecs = todayRecs.filter(r => r.employeeId === emp.id && r.date === todayStr());
-  const lastRec = empRecs.length ? empRecs[empRecs.length - 1] : null;
-  const hasOpenRec = lastRec && lastRec.checkIn && !lastRec.checkOut;
+  // Find records for today, sorted oldest-first
+  const empRecs = todayRecs
+    .filter(r => r.employeeId === emp.id && r.date === todayStr())
+    .sort((a, b) => (a.checkInTimestamp || '').localeCompare(b.checkInTimestamp || ''));
+  const lastRec       = empRecs.length ? empRecs[empRecs.length - 1] : null;
+  const completedSess = empRecs.filter(r => r.checkIn && r.checkOut).length;
+  const hasOpenRec    = lastRec && lastRec.checkIn && !lastRec.checkOut;
+  const capReached    = completedSess >= MAX_CHECKINS_PER_DAY && !hasOpenRec;
 
   const init = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
   document.getElementById('scanAvatar').textContent  = init;
   document.getElementById('scanName').textContent    = emp.name;
   document.getElementById('scanDesig').textContent   = emp.designation || '';
   let stateText = '';
-  if (!lastRec)       stateText = '⬜ Not checked in today';
+  if (!lastRec)        stateText = '⬜ Not checked in today';
   else if (hasOpenRec) stateText = '✅ Checked in at ' + lastRec.checkIn + ' · tap CHECK OUT';
+  else if (capReached) stateText = '🔒 Daily limit reached (' + MAX_CHECKINS_PER_DAY + ' sessions completed)';
   else                 stateText = '↩ Last checkout: ' + lastRec.checkOut + ' · tap CHECK IN to re-enter';
   document.getElementById('scanState').textContent   = stateText;
   document.getElementById('scanPreview').classList.add('visible');
   document.getElementById('qrScanStatus').textContent = '✅ Scanned: ' + emp.name;
 
-  // Show action buttons — allow check-in if no open record, check-out if open record exists
+  // Show action buttons — respect cap
   const btnIn  = document.getElementById('btnScanIn');
   const btnOut = document.getElementById('btnScanOut');
-  btnIn.disabled  = hasOpenRec || !adminLocVerified;
+  btnIn.disabled  = hasOpenRec || capReached || !adminLocVerified;
   btnOut.disabled = !hasOpenRec || !adminLocVerified;
   document.getElementById('scanActionRow').style.display = 'grid';
   document.getElementById('btnRescan').style.display     = 'block';
@@ -1331,12 +1482,16 @@ async function adminDoIn() {
   const loc = locations.find(l => l.id === adminLocId);
   const locLabel = loc ? loc.name : adminLocId;
   const now = new Date();
+  // Encode QR print timestamp into deviceId so it's visible in raw records
+  const deviceIdVal = scannedPrintedAt
+    ? 'ADMIN|QR Printed on ' + formatPrintedOn(new Date(scannedPrintedAt))
+    : 'ADMIN';
   const rec = {
     employeeId: emp.id, name: emp.name, designation: emp.designation || '',
     date: todayStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(),
     checkOut: null, checkOutTimestamp: null,
     location: locLabel, lat: loc ? loc.lat : '', lng: loc ? loc.lng : '',
-    deviceId: 'ADMIN'
+    deviceId: deviceIdVal
   };
   document.getElementById('btnScanIn').disabled = true;
   document.getElementById('btnScanIn').innerHTML = '<span class="spinner"></span>';
@@ -1345,10 +1500,13 @@ async function adminDoIn() {
     // Check there is no currently open record (not checked out) for this employee today
     const openRec = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && !r.checkOut);
     if (openRec) throw new Error(rec.name + ' is already checked in — check out first');
+    const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
+    if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
     records.push(rec);
     await attPatch(records);
     todayRecs.push(rec);
     renderRecords(); renderAdminRecords();
+    resetAdminTimer();
     showToast('✅ ' + emp.name + ' checked IN', 'success');
     document.getElementById('scanState').textContent = '✅ Checked in at ' + rec.checkIn;
     document.getElementById('btnScanIn').disabled  = true;
@@ -1379,6 +1537,7 @@ async function adminDoOut() {
     const local = todayRecs.find(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
     if (local) { local.checkOut = allRecs[idx].checkOut; local.checkOutTimestamp = allRecs[idx].checkOutTimestamp; }
     renderRecords(); renderAdminRecords();
+    resetAdminTimer();
     showToast('🚪 ' + emp.name + ' checked OUT', 'success');
     document.getElementById('scanState').textContent = '✔️ Checked out at ' + allRecs[idx].checkOut;
     document.getElementById('btnScanOut').disabled = true;
@@ -1387,6 +1546,26 @@ async function adminDoOut() {
     document.getElementById('btnScanOut').disabled = false;
   }
   document.getElementById('btnScanOut').innerHTML = '🚪 Check OUT';
+}
+
+// ── DOWNLOAD SHEET ────────────────────────────────────────────────────────────
+function openDownloadSheet() {
+  if (!isAdmin && !verifiedPin) { openPinOverlay('download'); return; }
+  _openDownloadSheetDirect();
+}
+
+async function _openDownloadSheetDirect() {
+  await populateSummaryMonths();
+  document.getElementById('downloadOverlay').classList.add('open');
+}
+
+function closeDownloadSheet() {
+  document.getElementById('downloadOverlay').classList.remove('open');
+  revokeAdminSession();
+}
+
+function handleDownloadOverlayClick(e) {
+  if (e.target === document.getElementById('downloadOverlay')) closeDownloadSheet();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1429,8 +1608,8 @@ async function downloadSummaryCsv() {
     const monthSel = document.getElementById('summaryMonthSel');
     const filter   = monthSel ? monthSel.value : '';   // "YYYY-MM" or "" for all
 
-    // Parse timestamps to get durations
     // Group: key = employeeId + "|" + "YYYY-MM"
+    // First pass: collect all records per employee-month
     const groups = {};
     for (const r of records) {
       if (!r.date) continue;
@@ -1443,29 +1622,36 @@ async function downloadSummaryCsv() {
           name:        r.name || '',
           designation: r.designation || '',
           monthKey,
-          days:        new Set(),
+          // date → { completed: bool, open: bool }
+          dateMap:     {},
+          sessions:    0,
           totalMins:   0,
         };
       }
       const g = groups[key];
-      if (r.date) g.days.add(r.date);
-      // Calculate duty hours from timestamps if available, else from HH:MM strings
-      let mins = 0;
+      if (!g.dateMap[r.date]) g.dateMap[r.date] = { completed: false, open: false };
+
       if (r.checkIn && r.checkOut) {
+        // Completed session
+        g.dateMap[r.date].completed = true;
+        g.sessions++;
+        let mins = 0;
         if (r.checkInTimestamp && r.checkOutTimestamp) {
           const ms = new Date(r.checkOutTimestamp) - new Date(r.checkInTimestamp);
           if (ms > 0) mins = ms / 60000;
         } else {
-          // Fallback: parse "HH:MM" strings
           const [ih, im] = r.checkIn.split(':').map(Number);
           const [oh, om] = r.checkOut.split(':').map(Number);
           if (!isNaN(ih) && !isNaN(oh)) {
             mins = (oh * 60 + om) - (ih * 60 + im);
-            if (mins < 0) mins += 24 * 60;  // past-midnight shift
+            if (mins < 0) mins += 24 * 60;
           }
         }
+        g.totalMins += mins;
+      } else if (r.checkIn && !r.checkOut) {
+        // Open / incomplete session
+        g.dateMap[r.date].open = true;
       }
-      g.totalMins += mins;
     }
 
     // Build CSV rows sorted by month, then name
@@ -1474,14 +1660,18 @@ async function downloadSummaryCsv() {
     );
 
     const header = ['Month', 'Employee ID', 'Name', 'Designation',
-                    'Days Present', 'Total Duty Hours', 'Avg Daily Hours'];
+                    'Days Present', 'Incomplete Days', 'Incomplete Dates',
+                    'Total Sessions', 'Total Duty Hours', 'Avg Daily Hours'];
     const lines = [header.join(',')];
     for (const g of rows) {
-      const days     = g.days.size;
-      const totalH   = (g.totalMins / 60).toFixed(2);
-      const avgH     = days > 0 ? (g.totalMins / 60 / days).toFixed(2) : '0.00';
-      // Format month as "Mon YYYY"
-      const [y, m]   = g.monthKey.split('-');
+      // Days present = dates with at least one completed session
+      const presentDates    = Object.entries(g.dateMap).filter(([, v]) => v.completed).map(([d]) => d).sort();
+      // Incomplete = dates where ALL records are open (no completed session on that date)
+      const incompleteDates = Object.entries(g.dateMap).filter(([, v]) => v.open && !v.completed).map(([d]) => d).sort();
+      const days      = presentDates.length;
+      const totalH    = (g.totalMins / 60).toFixed(2);
+      const avgH      = days > 0 ? (g.totalMins / 60 / days).toFixed(2) : '0.00';
+      const [y, m]    = g.monthKey.split('-');
       const monthLabel = new Date(+y, +m - 1, 1)
         .toLocaleString('en-IN', { month: 'short', year: 'numeric' });
       lines.push([
@@ -1490,6 +1680,9 @@ async function downloadSummaryCsv() {
         csvEscape(g.name),
         csvEscape(g.designation),
         days,
+        incompleteDates.length,
+        csvEscape(incompleteDates.join(', ')),
+        g.sessions,
         totalH,
         avgH
       ].join(','));
@@ -1527,124 +1720,302 @@ async function populateSummaryMonths() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ── QR PRINT PAGE ─────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
-let qrInstances = {};
+// ── UUID GENERATION ───────────────────────────────────────────────────────────
+// Deterministic UUID v5-style derived from employee data using SHA-1 via SubtleCrypto.
+// Falls back to a seeded pseudo-random UUID if SubtleCrypto is unavailable.
 
-function openQrPrint() {
+// Cache: employeeId → { uuid, printedAt }
+const _empUuidCache = {};
+
+async function getEmpUuid(emp) {
+  if (_empUuidCache[emp.id]) return _empUuidCache[emp.id];
+  const seed = [emp.id, emp.name, emp.designation || ''].join('|');
+  let uuid;
+  try {
+    const enc  = new TextEncoder().encode(seed);
+    const hash = await crypto.subtle.digest('SHA-1', enc);
+    const b    = new Uint8Array(hash);
+    // Format as UUID v5 layout from first 16 bytes of SHA-1
+    b[6] = (b[6] & 0x0f) | 0x50;  // version 5
+    b[8] = (b[8] & 0x3f) | 0x80;  // variant RFC 4122
+    const h = Array.from(b).map(x => x.toString(16).padStart(2,'0')).join('');
+    uuid = `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20,32)}`;
+  } catch {
+    // Fallback: seeded LCG pseudo-random (deterministic for same seed)
+    let s = 0;
+    for (let i = 0; i < seed.length; i++) s = Math.imul(31, s) + seed.charCodeAt(i) | 0;
+    const rand = (n) => { s = Math.imul(1664525, s) + 1013904223 | 0; return ((s >>> 0) % n).toString(16).padStart(n > 65535 ? 8 : 4, '0'); };
+    uuid = `${rand(0x100000000)}-${rand(0x10000)}-5${rand(0x1000)}-${(0x8000 | (Math.abs(s) & 0x3fff)).toString(16)}-${rand(0x100000000)}${rand(0x10000)}`;
+  }
+  _empUuidCache[emp.id] = uuid;
+  return uuid;
+}
+
+// Build a reverse-lookup map: uuid → employeeId
+// Called once after employees load and when needed
+async function buildUuidLookup() {
+  _uuidToEmpId = {};
+  await Promise.all(employees.map(async emp => {
+    const uuid = await getEmpUuid(emp);
+    _uuidToEmpId[uuid] = emp.id;
+  }));
+}
+let _uuidToEmpId = {};
+
+function formatPrintedOn(d) {
+  const DAYS  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS= ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `Printed on ${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// ── QR PRINT PAGE ─────────────────────────────────────────────────────────────
+async function openQrPrint() {
+  // Require admin PIN — if already in admin mode the PIN is already verified
+  if (!isAdmin && !verifiedPin) {
+    openPinOverlay('qr');
+    return;
+  }
+  await _openQrPrintDirect();
+}
+
+async function _openQrPrintDirect() {
+  await buildUuidLookup();
   document.getElementById('qrPrintOverlay').classList.add('open');
   buildQrGrid('');
 }
 
 function closeQrPrint() {
   document.getElementById('qrPrintOverlay').classList.remove('open');
+  revokeAdminSession();
 }
 
 function filterQrGrid() {
   buildQrGrid(document.getElementById('qrSearchInput').value.trim().toLowerCase());
 }
 
-function buildQrGrid(query) {
+async function buildQrGrid(query) {
   const grid = document.getElementById('qrGrid');
   const list = query
     ? employees.filter(e => e.name.toLowerCase().includes(query) || (e.designation||'').toLowerCase().includes(query))
     : employees;
   grid.innerHTML = '';
   qrInstances = {};
-  list.forEach(emp => {
-    const card = document.createElement('div');
-    card.className = 'qr-card';
-    card.title = 'Click to enlarge';
-    card.addEventListener('click', () => openEnlargeQr(emp));
-    const qrDiv = document.createElement('div');
-    const nameEl  = document.createElement('div'); nameEl.className = 'qr-card-name'; nameEl.textContent = emp.name;
-    const desigEl = document.createElement('div'); desigEl.className = 'qr-card-desig'; desigEl.textContent = emp.designation || '';
-    const idEl    = document.createElement('div'); idEl.className = 'qr-card-id'; idEl.textContent = emp.id;
-    card.appendChild(qrDiv);
-    card.appendChild(nameEl);
-    card.appendChild(desigEl);
-    card.appendChild(idEl);
-    grid.appendChild(card);
-    try {
-      const qr = new QRCode(qrDiv, {
-        text: emp.id,
-        width: 150, height: 150,
-        colorDark: '#1E293B', colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.M
-      });
-      qrInstances[emp.id] = qr;
-    } catch(e) { qrDiv.textContent = emp.id; }
-  });
+  if (!list.length) {
+    grid.innerHTML = '<div class="emp-list-empty">No employees found</div>';
+    return;
+  }
+  for (const emp of list) {
+    const init = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    const item = document.createElement('div');
+    item.className = 'emp-list-item';
+    item.innerHTML = `
+      <div class="emp-list-avatar">${init}</div>
+      <div class="emp-list-info">
+        <div class="emp-list-name">${esc(emp.name)}</div>
+        ${emp.designation ? `<div class="emp-list-desig">${esc(emp.designation)}</div>` : ''}
+        <div class="emp-list-id">${esc(emp.id)}</div>
+      </div>
+      <div class="emp-list-arrow">›</div>`;
+    item.addEventListener('click', () => openIdCard(emp));
+    grid.appendChild(item);
+  }
 }
 
-// ── QR ENLARGE ────────────────────────────────────────────────────────────────
-let enlargeEmpId = null;
+// ── ID CARD ───────────────────────────────────────────────────────────────────
+let _idCardEmpId     = null;
+let _idCardPrintedAt = null;
 
-function openEnlargeQr(emp) {
-  enlargeEmpId = emp.id;
-  // Clear previous QR
-  const qrContainer = document.getElementById('qrEnlargeQr');
-  qrContainer.innerHTML = '';
-  // Generate a large QR code
+async function openIdCard(emp) {
+  _idCardEmpId     = emp.id;
+  _idCardPrintedAt = new Date().toISOString();
+  const uuid    = await getEmpUuid(emp);
+  const payload = uuid + '|' + _idCardPrintedAt;
+  const init    = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+
+  document.getElementById('idCardAvatar').textContent = init;
+  document.getElementById('idCardName').textContent   = emp.name;
+  document.getElementById('idCardDesig').textContent  = emp.designation || '';
+  document.getElementById('idCardEmpId').textContent  = emp.id;
+  document.getElementById('idCardStamp').textContent  = formatPrintedOn(new Date(_idCardPrintedAt));
+
+  const qrWrap = document.getElementById('idCardQr');
+  qrWrap.innerHTML = '';
   try {
-    new QRCode(qrContainer, {
-      text: emp.id,
-      width: 260, height: 260,
-      colorDark: '#1E293B', colorLight: '#ffffff',
+    new QRCode(qrWrap, {
+      text: payload,
+      width: 180, height: 180,
+      colorDark: '#212529', colorLight: '#ffffff',
       correctLevel: QRCode.CorrectLevel.M
     });
-  } catch(e) {
-    qrContainer.textContent = emp.id;
+  } catch(e) { qrWrap.textContent = payload; }
+
+  document.getElementById('idCardOverlay').classList.add('open');
+}
+
+function closeIdCard() {
+  document.getElementById('idCardOverlay').classList.remove('open');
+  document.getElementById('slotPicker').classList.remove('open');
+  document.getElementById('btnIdPrint').textContent = '🖨️ Print ID Card';
+  document.querySelectorAll('.slot-cell').forEach(c => c.classList.remove('selected'));
+  _selectedSlot    = -1;
+  _idCardEmpId     = null;
+  _idCardPrintedAt = null;
+}
+
+function handleIdCardOverlayClick(e) {
+  if (e.target === document.getElementById('idCardOverlay')) closeIdCard();
+}
+
+// ── ID CARD PRINT WITH SLOT PICKER ───────────────────────────────────────────
+let _selectedSlot = -1;   // 0=TL 1=TR 2=BL 3=BR
+
+function toggleSlotPicker() {
+  const picker = document.getElementById('slotPicker');
+  const isOpen = picker.classList.toggle('open');
+  document.getElementById('btnIdPrint').textContent = isOpen ? '✕ Cancel' : '🖨️ Print ID Card';
+  if (!isOpen) {
+    _selectedSlot = -1;
+    document.querySelectorAll('.slot-cell').forEach(c => c.classList.remove('selected'));
   }
-  document.getElementById('qrEnlargeName').textContent  = emp.name;
-  document.getElementById('qrEnlargeDesig').textContent = emp.designation || '';
-  document.getElementById('qrEnlargeId').textContent    = emp.id;
-  document.getElementById('qrEnlargeOverlay').classList.add('open');
 }
 
-function closeEnlargeQr() {
-  document.getElementById('qrEnlargeOverlay').classList.remove('open');
-  enlargeEmpId = null;
+function selectSlot(slot) {
+  _selectedSlot = slot;
+  document.querySelectorAll('.slot-cell').forEach(c => {
+    c.classList.toggle('selected', +c.dataset.slot === slot);
+  });
+  // Small delay so user sees the selection highlight, then print
+  setTimeout(() => printIdCard(), 260);
 }
 
-function handleEnlargeOverlayClick(e) {
-  // Close when clicking the backdrop (outside the box)
-  if (e.target === document.getElementById('qrEnlargeOverlay')) closeEnlargeQr();
-}
-
-function printEnlargedQr() {
-  if (!enlargeEmpId) return;
-  const emp = employees.find(e => e.id === enlargeEmpId);
+async function printIdCard() {
+  if (!_idCardEmpId) return;
+  const emp = employees.find(e => e.id === _idCardEmpId);
   if (!emp) return;
-  // Build a minimal print window with just this QR card
-  const qrEl = document.getElementById('qrEnlargeQr');
+
+  // Close slot picker
+  document.getElementById('slotPicker').classList.remove('open');
+  document.getElementById('btnIdPrint').textContent = '🖨️ Print ID Card';
+  document.querySelectorAll('.slot-cell').forEach(c => c.classList.remove('selected'));
+
+  const qrEl  = document.getElementById('idCardQr');
   const imgEl = qrEl.querySelector('canvas, img');
-  let imgSrc = '';
-  if (imgEl && imgEl.tagName === 'CANVAS') {
-    imgSrc = imgEl.toDataURL('image/png');
-  } else if (imgEl && imgEl.tagName === 'IMG') {
-    imgSrc = imgEl.src;
-  }
-  const win = window.open('', '_blank', 'width=400,height=500');
-  win.document.write(`
-    <!DOCTYPE html><html><head><title>QR – ${emp.name}</title>
-    <style>
-      body { font-family: 'Nunito', Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #fff; }
-      .card { border: 2px solid #e2e8f0; border-radius: 16px; padding: 28px 24px; text-align: center; }
-      img { display: block; margin: 0 auto 14px; border-radius: 10px; }
-      .name  { font-size: 20px; font-weight: 800; color: #1e293b; }
-      .desig { font-size: 13px; color: #64748b; font-weight: 700; margin: 4px 0; }
-      .id    { font-size: 11px; color: #2563eb; font-weight: 700; font-family: monospace; margin-top: 6px; }
-    </style></head><body>
-    <div class="card">
-      ${imgSrc ? `<img src="${imgSrc}" width="220" height="220">` : `<p>${emp.id}</p>`}
-      <div class="name">${emp.name}</div>
-      <div class="desig">${emp.designation || ''}</div>
-      <div class="id">${emp.id}</div>
-    </div>
-    <script>window.onload=()=>{ window.print(); window.close(); }<\/script>
-    </body></html>`);
+  let imgSrc  = '';
+  if (imgEl && imgEl.tagName === 'CANVAS')   imgSrc = imgEl.toDataURL('image/png');
+  else if (imgEl && imgEl.tagName === 'IMG') imgSrc = imgEl.src;
+
+  const slot = _selectedSlot >= 0 ? _selectedSlot : 0;
+
+
+  // Access zones: resolve from employee locationIds
+  const zones = (emp.locationIds && emp.locationIds.length)
+    ? locations.filter(l => emp.locationIds.includes(l.id)).map(l => l.name).join(', ')
+    : locations.map(l => l.name).join(', ');
+
+  const printedOn = formatPrintedOn(new Date(_idCardPrintedAt || Date.now()));
+
+  const cardHtml = `
+    <div class="id-card">
+      <div class="card-hdr"><div class="ttl">EMPLOYEE ID CARD</div></div>
+      <div class="top-sec">
+        <div class="photo-box"><span class="photo-label">PHOTO</span></div>
+        <div class="name-block">
+          <div class="printed-name">${emp.name}</div>
+          ${emp.designation ? `<div class="printed-desig">${emp.designation}</div>` : ''}
+          <div class="printed-id">${emp.id}</div>
+          <div class="field-row"><span class="flabel">Dept</span><span class="fline"></span></div>
+          <div class="field-row"><span class="flabel">DOJ</span><span class="fline"></span></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="fields-sec">
+        <div class="field-row"><span class="flabel">Blood Gr</span><span class="fline short"></span></div>
+        <div class="field-row"><span class="flabel">Mobile</span><span class="fline"></span></div>
+        <div class="field-row"><span class="flabel">Emergency</span><span class="fline"></span></div>
+        <div class="field-row"><span class="flabel">Issue Date</span><span class="fline"></span></div>
+        <div class="field-row"><span class="flabel">Valid Until</span><span class="fline"></span></div>
+        <div class="field-row"><span class="flabel">Zones</span><span class="fval zones">${zones}</span></div>
+      </div>
+      <div class="divider"></div>
+      <div class="bottom-sec">
+        <div class="qr-col">
+          <div class="qr-wrap">${imgSrc ? `<img src="${imgSrc}" width="78" height="78">` : `<p style="font-size:7px;font-family:monospace">${emp.id}</p>`}</div>
+          <div class="stamp">${printedOn}</div>
+        </div>
+        <div class="sig-col">
+          <div class="sig-line"></div>
+          <div class="sig-label">Authorized Signature</div>
+        </div>
+      </div>
+    </div>`;
+
+  const emptyHtml = `<div class="id-card empty"></div>`;
+  const slots = [0,1,2,3].map(i => i === slot ? cardHtml : emptyHtml);
+
+  const win = window.open('', '_blank', 'width=794,height=1123');
+  win.document.write(`<!DOCTYPE html><html><head>
+  <title></title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { size: A4 portrait; margin: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Nunito', Arial, sans-serif; background: white; }
+    .page {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 6mm;
+      width: 210mm;
+      height: 297mm;
+      padding: 10mm;
+    }
+    .id-card { border: 1.5px dashed #adb5bd; border-radius: 4mm; overflow: hidden; display: flex; flex-direction: column; }
+    .id-card.empty { border: none !important; outline: none !important; background: transparent !important; box-shadow: none !important; pointer-events: none; }
+    .card-hdr { background: #212529; padding: 3.5mm 4mm; flex-shrink: 0; }
+    .ttl { font-size: 8pt; font-weight: 800; color: white; letter-spacing: 1.2px; text-align: center; text-transform: uppercase; }
+    .top-sec { display: flex; gap: 3.5mm; padding: 4mm 4.5mm; flex-shrink: 0; }
+    .photo-box { width: 22mm; height: 28mm; border: 1px solid #adb5bd; border-radius: 2mm; flex-shrink: 0;
+                 display: flex; align-items: center; justify-content: center; background: #f8f9fa; }
+    .photo-label { font-size: 6pt; font-weight: 700; color: #adb5bd; letter-spacing: 1.2px; text-transform: uppercase; }
+    .name-block { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; gap: 1.2mm; min-width: 0; padding-top: 0.5mm; }
+    .printed-name  { font-size: 10pt; font-weight: 800; color: #212529; line-height: 1.2; word-break: break-word; }
+    .printed-desig { font-size: 7pt; color: #F5821F; font-weight: 700; margin-bottom: 0.5mm; }
+    .printed-id    { font-size: 6pt; color: #adb5bd; font-weight: 700; font-family: monospace; margin-bottom: 1.5mm; }
+    .divider { height: 0.3mm; background: #dee2e6; margin: 0 4mm; flex-shrink: 0; }
+    .fields-sec { padding: 3mm 4.5mm; display: flex; flex-direction: column; justify-content: space-between; flex: 1; }
+    .field-row { display: flex; align-items: flex-end; gap: 2mm; }
+    .flabel { font-size: 6pt; font-weight: 800; color: #495057; text-transform: uppercase;
+              letter-spacing: 0.4px; white-space: nowrap; flex-shrink: 0; min-width: 14mm; }
+    .fline { flex: 1; border-bottom: 0.8px solid #212529; height: 4.5mm; display: block; }
+    .fline.short { max-width: 13mm; }
+    .fval { flex: 1; font-size: 6.5pt; font-weight: 700; color: #F5821F;
+            border-bottom: 0.8px solid #dee2e6; height: 4.5mm; line-height: 1; padding-bottom: 0.5mm;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bottom-sec { display: flex; align-items: flex-end; padding: 3mm 4.5mm 4mm; gap: 3mm; flex-shrink: 0; }
+    .qr-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+    .qr-wrap { background: #fff4ec; border-radius: 2.5mm; padding: 2mm; display: inline-flex; }
+    .qr-wrap img { display: block; border-radius: 1.5mm; }
+    .stamp { font-size: 4.5pt; color: #adb5bd; font-weight: 600; margin-top: 1.5mm; text-align: center;
+             letter-spacing: 0.2px; max-width: 28mm; line-height: 1.5; }
+    .sig-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 1mm; }
+    .sig-line { width: 100%; border-bottom: 0.8px solid #212529; margin-bottom: 2mm; height: 10mm; }
+    .sig-label { font-size: 5.5pt; font-weight: 800; color: #495057; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+  </style></head><body>
+  <div class="page">
+    ${slots[0]}
+    ${slots[1]}
+    ${slots[2]}
+    ${slots[3]}
+  </div>
+  <script>
+    document.title = '';
+    window.onload = () => { window.print(); window.close(); };
+  <\/script>
+  </body></html>`);
   win.document.close();
+  _selectedSlot = -1;
+
 }
 
 // ── SETUP (disabled) ──────────────────────────────────────────────────────────
