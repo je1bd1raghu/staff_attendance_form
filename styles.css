@@ -253,10 +253,10 @@ pre { background: var(--surface2); border-radius: 10px; padding: 14px; font-size
 .id-card-desig { font-size: 13px; color: var(--primary); font-weight: 700; margin-top: 4px; }
 .id-card-empid { font-size: 12px; color: var(--text3); font-weight: 700; font-family: monospace; margin-top: 6px; letter-spacing: 0.5px; }
 .id-card-divider { height: 1px; background: var(--border); margin: 0 20px; }
-.id-card-qr-section { padding: 16px 20px 8px; display: flex; flex-direction: column; align-items: center; }
+.id-card-qr-section { padding: 16px 20px 8px; display: flex; flex-direction: row; align-items: center; gap: 10px; }
 .id-card-qr-wrap { background: var(--surface2); border-radius: 14px; padding: 14px; display: inline-flex; }
 .id-card-qr-wrap canvas, .id-card-qr-wrap img { display: block; border-radius: 8px; }
-.id-card-stamp { font-size: 10px; color: var(--text3); font-weight: 600; margin-top: 10px; letter-spacing: 0.3px; text-align: center; }
+.id-card-stamp { font-size: 10px; color: var(--text3); font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); line-height: 1; }
 .id-card-footer { padding: 16px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .btn-id-print { padding: 14px 10px; border: none; border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: var(--primary); color: white; }
 .btn-id-close  { padding: 14px 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: white; color: var(--text2); }

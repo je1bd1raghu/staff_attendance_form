@@ -1406,13 +1406,13 @@ async function printIdCard() {
         <div class="field-row"><span class="flabel">Emergency</span><span class="fline"></span></div>
         <div class="field-row"><span class="flabel">Issue Date</span><span class="fline"></span></div>
         <div class="field-row"><span class="flabel">Valid Until</span><span class="fline"></span></div>
-        <div class="field-row"><span class="flabel">Zones</span><span class="fval zones">${zones}</span></div>
+        <div class="field-row"><span class="flabel">Allowed</span><span class="fval zones">${zones}</span></div>
       </div>
       <div class="divider"></div>
       <div class="bottom-sec">
         <div class="qr-col">
-          <div class="qr-wrap">${imgSrc ? `<img src="${imgSrc}" width="78" height="78">` : `<p style="font-size:7px;font-family:monospace">${emp.id}</p>`}</div>
           <div class="stamp">${printedOn}</div>
+          <div class="qr-wrap">${imgSrc ? `<img src="${imgSrc}" width="78" height="78">` : `<p style="font-size:7px;font-family:monospace">${emp.id}</p>`}</div>
         </div>
         <div class="sig-col">
           <div class="sig-line"></div>
@@ -1465,11 +1465,12 @@ async function printIdCard() {
             white-space: normal; overflow: visible; word-break: break-word; }
     .field-row:has(.fval) { align-items: flex-start; }
     .bottom-sec { display: flex; align-items: flex-end; padding: 3mm 4.5mm 4mm; gap: 3mm; flex-shrink: 0; }
-    .qr-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+    .qr-col { display: flex; flex-direction: row; align-items: center; flex-shrink: 0; gap: 1.5mm; }
     .qr-wrap { background: #fff4ec; border-radius: 2.5mm; padding: 2mm; display: inline-flex; }
     .qr-wrap img { display: block; border-radius: 1.5mm; }
-    .stamp { font-size: 4.5pt; color: #adb5bd; font-weight: 600; margin-top: 1.5mm; text-align: center;
-             letter-spacing: 0.2px; max-width: 28mm; line-height: 1.5; }
+    .stamp { font-size: 4.5pt; color: #adb5bd; font-weight: 600; white-space: nowrap;
+             writing-mode: vertical-rl; transform: rotate(180deg);
+             letter-spacing: 0.3px; line-height: 1; }
     .sig-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 1mm; }
     .sig-line { width: 100%; border-bottom: 0.8px solid #212529; margin-bottom: 2mm; height: 10mm; }
     .sig-label { font-size: 5.5pt; font-weight: 800; color: #495057; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
