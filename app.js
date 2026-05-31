@@ -1461,8 +1461,9 @@ async function printIdCard() {
     .fline { flex: 1; border-bottom: 0.8px solid #212529; height: 4.5mm; display: block; }
     .fline.short { max-width: 13mm; }
     .fval { flex: 1; font-size: 6.5pt; font-weight: 700; color: #F5821F;
-            border-bottom: 0.8px solid #dee2e6; height: 4.5mm; line-height: 1; padding-bottom: 0.5mm;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            line-height: 1.4; padding-bottom: 0.5mm;
+            white-space: normal; overflow: visible; word-break: break-word; }
+    .field-row:has(.fval) { align-items: flex-start; }
     .bottom-sec { display: flex; align-items: flex-end; padding: 3mm 4.5mm 4mm; gap: 3mm; flex-shrink: 0; }
     .qr-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
     .qr-wrap { background: #fff4ec; border-radius: 2.5mm; padding: 2mm; display: inline-flex; }
