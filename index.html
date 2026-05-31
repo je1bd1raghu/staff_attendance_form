@@ -718,10 +718,27 @@ async function fetchConfig() {
 async function fetchTodayRecords() {
   try {
     const records = await attGet();
-    todayRecs     = records.filter(r => r.date === shiftDateStr());
+    todayRecs     = records.filter(r => r.date === shiftDateStr() && !isBeforeShiftCutoff(r));
     renderRecords();
     renderAdminRecords();
   } catch { todayRecs = []; renderRecords(); renderAdminRecords(); }
+}
+
+// Returns true if a record's check-in timestamp falls before today's shift cutoff.
+// Records between midnight and SHIFT_CUTOFF_HOUR on the current calendar day are
+// considered part of the *previous* shift and should not appear in today's list.
+function isBeforeShiftCutoff(rec) {
+  if (!rec.checkInTimestamp) return false;
+  const ts      = new Date(rec.checkInTimestamp);
+  const today   = new Date();
+  // Only filter records that are on today's *calendar* date and before cutoff hour
+  if (ts.getFullYear() === today.getFullYear() &&
+      ts.getMonth()    === today.getMonth()    &&
+      ts.getDate()     === today.getDate()     &&
+      ts.getHours()    < SHIFT_CUTOFF_HOUR) {
+    return true;
+  }
+  return false;
 }
 
 // ── EMPLOYEES ─────────────────────────────────────────────────────────────────
