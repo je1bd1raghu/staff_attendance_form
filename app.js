@@ -1424,8 +1424,7 @@ async function printIdCard() {
   const emptyHtml = `<div class="id-card empty"></div>`;
   const slots = [0,1,2,3].map(i => i === slot ? cardHtml : emptyHtml);
 
-  const win = window.open('', '_blank', 'width=794,height=1123');
-  win.document.write(`<!DOCTYPE html><html><head>
+  const printHtml = `<!DOCTYPE html><html><head>
   <title></title>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -1480,12 +1479,32 @@ async function printIdCard() {
     ${slots[2]}
     ${slots[3]}
   </div>
-  <script>
-    document.title = '';
-    window.onload = () => { window.print(); window.close(); };
-  <\/script>
-  </body></html>`);
-  win.document.close();
+  </body></html>`;
+
+  // Use a hidden iframe for printing — works reliably on Linux, Mac, and Windows.
+  // window.open() is blocked by popup blockers on non-Windows browsers and the
+  // window.print() + window.close() race causes blank prints on some systems.
+  let iframe = document.getElementById('_printFrame');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = '_printFrame';
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0';
+    document.body.appendChild(iframe);
+  }
+
+  const iDoc = iframe.contentDocument || iframe.contentWindow.document;
+  iDoc.open();
+  iDoc.write(printHtml);
+  iDoc.close();
+
+  // Wait for fonts + images to load before printing
+  iframe.contentWindow.onload = () => {
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }, 400);
+  };
+
   _selectedSlot = -1;
 }
 
