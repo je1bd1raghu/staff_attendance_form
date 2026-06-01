@@ -168,22 +168,23 @@ export default {
       if (completed >= MAX_CHECKINS_PER_DAY)
         return err(`${emp.name} has reached the daily limit of ${MAX_CHECKINS_PER_DAY} sessions`, 409);
 
-      // 7. Build the row — overwrite date and deviceId with server values
+      // 7. Build the row — overwrite date/deviceId server-side, but keep client's
+      // local-time strings for checkIn/checkOut so they display correctly.
+      // checkInTimestamp is the authoritative ISO timestamp (always UTC).
       const now = new Date();
-      const timeStr = nowTimeStr(now);
       const row = {
-        employeeId:       emp.id,
-        name:             emp.name,
-        designation:      emp.designation || '',
-        date,                           // server-computed, ignores client value
-        checkIn:          timeStr,
-        checkInTimestamp: now.toISOString(),
-        checkOut:         null,
+        employeeId:        emp.id,
+        name:              emp.name,
+        designation:       emp.designation || '',
+        date,                              // server-computed, ignores client value
+        checkIn:           body.checkIn || nowTimeStr(now),  // client local time preferred
+        checkInTimestamp:  now.toISOString(),                // server UTC, source of truth
+        checkOut:          null,
         checkOutTimestamp: null,
-        location:         body.location  || '',
-        lat:              body.lat       ?? null,
-        lng:              body.lng       ?? null,
-        deviceId,                       // server re-sets from validated value
+        location:          body.location  || '',
+        lat:               body.lat       ?? null,
+        lng:               body.lng       ?? null,
+        deviceId,                          // server re-sets from validated value
       };
 
       const { ok: isOk, data, status } = await supa('attendance', {
@@ -213,8 +214,8 @@ export default {
 
       const now = new Date();
       const patch = {
-        checkOut:          nowTimeStr(now),
-        checkOutTimestamp: now.toISOString(),
+        checkOut:          body.checkOut || nowTimeStr(now),  // client local time preferred
+        checkOutTimestamp: now.toISOString(),                 // server UTC, source of truth
       };
 
       const { ok: pOk, data: pData, status } = await supa(`attendance?id=eq.${id}`, {
@@ -257,7 +258,6 @@ export default {
         return err(`${emp.name} has reached the daily limit`, 409);
 
       const now = new Date();
-      const timeStr = nowTimeStr(now);
       const deviceIdVal = body.printedAt
         ? `ADMIN|QR Printed on ${body.printedAt}`
         : 'ADMIN';
@@ -267,7 +267,7 @@ export default {
         name:              emp.name,
         designation:       emp.designation || '',
         date,
-        checkIn:           timeStr,
+        checkIn:           body.checkIn || nowTimeStr(now),  // client local time preferred
         checkInTimestamp:  now.toISOString(),
         checkOut:          null,
         checkOutTimestamp: null,
@@ -300,8 +300,8 @@ export default {
 
       const now = new Date();
       const patch = {
-        checkOut:          nowTimeStr(now),
-        checkOutTimestamp: now.toISOString(),
+        checkOut:          body.checkOut || nowTimeStr(now),  // client local time preferred
+        checkOutTimestamp: now.toISOString(),                 // server UTC, source of truth
       };
 
       const { ok: pOk, data: pData, status } = await supa(`attendance?id=eq.${id}`, {

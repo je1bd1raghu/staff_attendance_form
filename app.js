@@ -399,9 +399,11 @@ async function doCheckOut() {
   if (!rec) { showToast('No active check-in found', 'error'); return; }
   if (!rec.id) { showToast('Record id missing — please refresh the page', 'error'); return; }
   await withBtnLoad('btnOut', async () => {
-    // Worker verifies deviceId ownership before allowing the update
-    const updated = await attUpdate(rec.id, {});
-    rec.checkOut = updated.checkOut; rec.checkOutTimestamp = updated.checkOutTimestamp;
+    const now     = new Date();
+    const coTime  = timeStr(now);
+    const updated = await attUpdate(rec.id, { checkOut: coTime });
+    rec.checkOut = updated.checkOut || coTime;
+    rec.checkOutTimestamp = updated.checkOutTimestamp;
     renderRecords(); updateBtns();
     showToast('🚪 Checked OUT at ' + rec.checkOut, 'success');
   });
@@ -982,14 +984,16 @@ async function adminDoOut() {
     const openRec = allRecs.find(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
     if (!openRec) throw new Error('No active check-in found for ' + emp.name);
     if (!openRec.id) throw new Error('Record has no id — cannot update');
-    const updated = await attUpdate(openRec.id, {});   // worker sets checkout time
-    // Sync local cache
+    const now    = new Date();
+    const coTime = timeStr(now);
+    const updated = await attUpdate(openRec.id, { checkOut: coTime });   // worker verifies PIN
+    const displayTime = updated.checkOut || coTime;
     const local = todayRecs.find(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
-    if (local) { local.checkOut = updated.checkOut; local.checkOutTimestamp = updated.checkOutTimestamp; }
+    if (local) { local.checkOut = displayTime; local.checkOutTimestamp = updated.checkOutTimestamp; }
     renderRecords(); renderAdminRecords();
     resetAdminTimer();
     showToast('🚪 ' + emp.name + ' checked OUT', 'success');
-    document.getElementById('scanState').textContent = '✔️ Checked out at ' + (updated.checkOut || '');
+    document.getElementById('scanState').textContent = '✔️ Checked out at ' + displayTime;
     document.getElementById('btnScanOut').disabled = true;
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
