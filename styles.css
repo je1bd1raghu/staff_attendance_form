@@ -222,6 +222,7 @@ pre { background: var(--surface2); border-radius: 10px; padding: 14px; font-size
 .qr-print-header { background: linear-gradient(135deg, #212529 0%, #343a40 100%); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
 .qr-print-header h2 { font-size: 18px; font-weight: 800; }
 .qr-print-header button { background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 8px; padding: 8px 16px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; }
+.qr-print-header button:disabled { opacity: 0.5; cursor: not-allowed; }
 .qr-print-body { padding: 16px; max-width: 600px; margin: 0 auto; }
 .qr-search-bar { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 15px; margin-bottom: 12px; outline: none; background: white; }
 .qr-search-bar:focus { border-color: var(--primary); }

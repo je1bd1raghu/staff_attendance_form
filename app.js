@@ -1,8 +1,6 @@
-const CONFIG_FILE = 'config.json';
-const ATT_FILE    = 'attendance.csv';
 const WORKER_URL  = 'https://attendance-proxy.je1-bd1-raghu.workers.dev/';
-// All GitHub credentials live in Cloudflare Worker secrets.
-// The client never holds a token or gist ID.
+// All Supabase credentials live in Cloudflare Worker secrets.
+// The client never holds a Supabase key or URL directly.
 
 let employees   = [];
 let locations   = [];
@@ -83,72 +81,69 @@ function pad(n) { return n < 10 ? '0' + n : '' + n; }
 // ── STORAGE BAR ───────────────────────────────────────────────────────────────
 function updateBar(connected) {}
 
-// ── GIST / CSV ────────────────────────────────────────────────────────────────
-const CSV_COLS = ['employeeId','name','designation','date','checkIn','checkInTimestamp',
-                  'checkOut','checkOutTimestamp','location','lat','lng','deviceId'];
+// ── SUPABASE / REST ───────────────────────────────────────────────────────────
+// attendance rows have the same field names as the old CSV columns plus an `id`
+// (UUID) assigned by Supabase on insert.
+const REC_FIELDS = ['employeeId','name','designation','date','checkIn','checkInTimestamp',
+                    'checkOut','checkOutTimestamp','location','lat','lng','deviceId'];
 
-function csvEscape(v) {
-  const s = v == null ? '' : String(v);
-  return (s.includes(',') || s.includes('"') || s.includes('\n'))
-    ? '"' + s.replace(/"/g, '""') + '"' : s;
-}
-function csvStringify(records) {
-  const header = CSV_COLS.join(',');
-  const rows   = records.map(r => CSV_COLS.map(c => csvEscape(r[c])).join(','));
-  return [header, ...rows].join('\n');
-}
-function csvParse(text) {
-  if (!text || !text.trim()) return [];
-  const result = Papa.parse(text.trim(), {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: h => h.trim(),
-    transform: v => v.trim()
-  });
-  return result.data || [];
-}
-
+// Fetch all attendance rows from Supabase via the worker
 async function attGet() {
   const r = await fetch(WORKER_URL + 'attendance?t=' + Date.now());
   if (!r.ok) return [];
-  return csvParse(await r.text());
+  return r.json();   // array of row objects, each with an `id` UUID
 }
 
-// ── WRITE LOCK ───────────────────────────────────────────────────────────────
-// GitHub Gist does not support atomic writes or If-Match. To reduce the window
-// for concurrent-write collisions we serialise all attPatch calls through a
-// promise queue: while one write is in flight no second write can start.
-let _patchQueue = Promise.resolve();
-
-async function attPatch(records) {
-  // Serialise writes — wait for any in-flight patch to complete first
-  const result = _patchQueue.then(() => _doPatch(records));
-  _patchQueue = result.catch(() => {});   // keep queue moving even on error
-  return result;
-}
-
-async function _doPatch(records) {
-  const csvContent = csvStringify(records);
-  const body = { files: {} };
-  body.files[ATT_FILE] = { content: csvContent };
-  // Admin writes include the raw PIN (sent over HTTPS to the worker).
-  // verifiedPin holds the raw value only for the duration of the admin session;
-  // it is cleared on exitAdmin(). We never store it in localStorage or logs.
-  if (isAdmin && verifiedPin) body.adminPin = verifiedPin;
+// Insert a single new attendance record (employee self check-in).
+// Returns the inserted row (including its Supabase-assigned `id`).
+async function attInsert(rec) {
   const r = await fetch(WORKER_URL + 'attendance', {
-    method: 'PATCH',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(rec),
   });
   if (!r.ok) {
-    let msg = 'HTTP ' + r.status + ' saving to Gist';
+    let msg = 'HTTP ' + r.status + ' saving to Supabase';
     try { const d = await r.json(); if (d.error) msg = d.error; } catch {}
     throw new Error(msg);
   }
-  // Note: full concurrency safety (two devices writing simultaneously) requires
-  // a backend with atomic writes. This queue only prevents collisions from the
-  // same device (e.g. double-tap). Cross-device race windows remain small
-  // (~1–2 s) because each caller does a fresh attGet() immediately before writing.
+  return r.json();   // inserted row with `id`
+}
+
+// Update an existing attendance record by its Supabase UUID (for check-out).
+async function attUpdate(id, patch) {
+  const endpoint = isAdmin && verifiedPin
+    ? WORKER_URL + 'attendance/admin/' + id
+    : WORKER_URL + 'attendance/' + id;
+  const body = isAdmin && verifiedPin
+    ? { ...patch, adminPin: verifiedPin }
+    : patch;
+  const r = await fetch(endpoint, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    let msg = 'HTTP ' + r.status + ' updating record';
+    try { const d = await r.json(); if (d.error) msg = d.error; } catch {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+// Admin insert (check-in via QR scan) — worker validates PIN server-side
+async function attAdminInsert(rec) {
+  const r = await fetch(WORKER_URL + 'attendance/admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...rec, adminPin: verifiedPin }),
+  });
+  if (!r.ok) {
+    let msg = 'HTTP ' + r.status + ' saving to Supabase';
+    try { const d = await r.json(); if (d.error) msg = d.error; } catch {}
+    throw new Error(msg);
+  }
+  return r.json();
 }
 
 async function workerGet(path) {
@@ -397,8 +392,10 @@ async function doCheckIn() {
   const now = new Date();
   const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '', date: shiftDateStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceId: deviceId };
   await withBtnLoad('btnIn', async () => {
-    await appendRecord(rec);
-    todayRecs.push(rec);
+    const inserted = await appendRecord(rec);
+    // Store Supabase-assigned id on the local record for later check-out
+    const localRec = { ...rec, id: inserted.id };
+    todayRecs.push(localRec);
     renderRecords(); updateBtns();
     showToast('✅ Checked IN at ' + rec.checkIn, 'success');
   });
@@ -409,9 +406,10 @@ async function doCheckOut() {
   const rec = todayRecs.find(r => r.employeeId === emp.id && r.date === shiftDateStr() && !r.checkOut);
   if (!rec) { showToast('No active check-in found', 'error'); return; }
   const now = new Date();
-  rec.checkOut = timeStr(now); rec.checkOutTimestamp = now.toISOString();
+  const patch = { checkOut: timeStr(now), checkOutTimestamp: now.toISOString() };
   await withBtnLoad('btnOut', async () => {
-    await saveAll();
+    await attUpdate(rec.id, patch);
+    rec.checkOut = patch.checkOut; rec.checkOutTimestamp = patch.checkOutTimestamp;
     renderRecords(); updateBtns();
     showToast('🚪 Checked OUT at ' + rec.checkOut, 'success');
   });
@@ -440,15 +438,18 @@ async function appendRecord(rec) {
   // Enforce daily cap
   const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
   if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
-  records.push(rec);
-  await attPatch(records);
+  // Insert single row — Supabase returns the row with its assigned `id`
+  const inserted = await attInsert(rec);
+  return inserted;
 }
 
-async function saveAll() {
-  const allRecs = await attGet().catch(() => []);
-  const today   = shiftDateStr();
-  const others  = allRecs.filter(r => r.date !== today);
-  await attPatch([...others, ...todayRecs]);
+// checkOut: update the open record for this employee today
+async function checkOutRecord(employeeId, date, patch) {
+  const records = await attGet().catch(() => []);
+  const openRec = records.find(r => r.employeeId === employeeId && r.date === date && r.checkIn && !r.checkOut);
+  if (!openRec) throw new Error('No active check-in found');
+  if (!openRec.id) throw new Error('Record has no id — cannot update');
+  return attUpdate(openRec.id, patch);
 }
 
 // ── RENDER (employee view) ────────────────────────────────────────────────────
@@ -955,7 +956,6 @@ async function adminDoIn() {
   const loc = locations.find(l => l.id === adminLocId);
   const locLabel = loc ? loc.name : adminLocId;
   const now = new Date();
-  // Encode QR print timestamp into deviceId so it's visible in raw records
   const deviceIdVal = scannedPrintedAt
     ? 'ADMIN|QR Printed on ' + formatPrintedOn(new Date(scannedPrintedAt))
     : 'ADMIN';
@@ -969,15 +969,15 @@ async function adminDoIn() {
   document.getElementById('btnScanIn').disabled = true;
   document.getElementById('btnScanIn').innerHTML = '<span class="spinner"></span>';
   try {
+    // Validate against current records before inserting
     const records = await attGet().catch(() => []);
-    // Check there is no currently open record (not checked out) for this employee today
     const openRec = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && !r.checkOut);
     if (openRec) throw new Error(rec.name + ' is already checked in — check out first');
     const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
     if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
-    records.push(rec);
-    await attPatch(records);
-    todayRecs.push(rec);
+    const inserted = await attAdminInsert(rec);
+    const localRec = { ...rec, id: inserted.id };
+    todayRecs.push(localRec);
     renderRecords(); renderAdminRecords();
     resetAdminTimer();
     showToast('✅ ' + emp.name + ' checked IN', 'success');
@@ -1000,19 +1000,19 @@ async function adminDoOut() {
   try {
     const allRecs = await attGet().catch(() => []);
     const today   = shiftDateStr();
-    const idx     = allRecs.findIndex(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
-    if (idx < 0) throw new Error('No active check-in found for ' + emp.name);
+    const openRec = allRecs.find(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
+    if (!openRec) throw new Error('No active check-in found for ' + emp.name);
+    if (!openRec.id) throw new Error('Record has no id — cannot update');
     const now = new Date();
-    allRecs[idx].checkOut = timeStr(now);
-    allRecs[idx].checkOutTimestamp = now.toISOString();
-    await attPatch(allRecs);
+    const patch = { checkOut: timeStr(now), checkOutTimestamp: now.toISOString() };
+    await attUpdate(openRec.id, patch);
     // Sync local
     const local = todayRecs.find(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
-    if (local) { local.checkOut = allRecs[idx].checkOut; local.checkOutTimestamp = allRecs[idx].checkOutTimestamp; }
+    if (local) { local.checkOut = patch.checkOut; local.checkOutTimestamp = patch.checkOutTimestamp; }
     renderRecords(); renderAdminRecords();
     resetAdminTimer();
     showToast('🚪 ' + emp.name + ' checked OUT', 'success');
-    document.getElementById('scanState').textContent = '✔️ Checked out at ' + allRecs[idx].checkOut;
+    document.getElementById('scanState').textContent = '✔️ Checked out at ' + patch.checkOut;
     document.getElementById('btnScanOut').disabled = true;
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
@@ -1052,6 +1052,19 @@ function triggerDownload(filename, content) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+}
+
+function csvEscape(v) {
+  const s = v == null ? '' : String(v);
+  return (s.includes(',') || s.includes('"') || s.includes('\n'))
+    ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+const CSV_COLS = ['employeeId','name','designation','date','checkIn','checkInTimestamp',
+                  'checkOut','checkOutTimestamp','location','lat','lng','deviceId'];
+function csvStringify(records) {
+  return [CSV_COLS.join(','),
+    ...records.map(r => CSV_COLS.map(c => csvEscape(r[c])).join(','))
+  ].join('\n');
 }
 
 async function downloadRawCsv() {
@@ -1406,13 +1419,13 @@ async function printIdCard() {
         <div class="field-row"><span class="flabel">Emergency</span><span class="fline"></span></div>
         <div class="field-row"><span class="flabel">Issue Date</span><span class="fline"></span></div>
         <div class="field-row"><span class="flabel">Valid Until</span><span class="fline"></span></div>
-        <div class="field-row"><span class="flabel">Allowed</span><span class="fval zones">${zones}</span></div>
+        <div class="field-row"><span class="flabel">Zones</span><span class="fval zones">${zones}</span></div>
       </div>
       <div class="divider"></div>
       <div class="bottom-sec">
         <div class="qr-col">
-          <div class="stamp">${printedOn}</div>
           <div class="qr-wrap">${imgSrc ? `<img src="${imgSrc}" width="78" height="78">` : `<p style="font-size:7px;font-family:monospace">${emp.id}</p>`}</div>
+          <div class="stamp">${printedOn}</div>
         </div>
         <div class="sig-col">
           <div class="sig-line"></div>
@@ -1465,12 +1478,11 @@ async function printIdCard() {
             white-space: normal; overflow: visible; word-break: break-word; }
     .field-row:has(.fval) { align-items: flex-start; }
     .bottom-sec { display: flex; align-items: flex-end; padding: 3mm 4.5mm 4mm; gap: 3mm; flex-shrink: 0; }
-    .qr-col { display: flex; flex-direction: row; align-items: center; flex-shrink: 0; gap: 1.5mm; }
+    .qr-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
     .qr-wrap { background: #fff4ec; border-radius: 2.5mm; padding: 2mm; display: inline-flex; }
     .qr-wrap img { display: block; border-radius: 1.5mm; }
-    .stamp { font-size: 4.5pt; color: #adb5bd; font-weight: 600; white-space: nowrap;
-             writing-mode: vertical-rl; transform: rotate(180deg);
-             letter-spacing: 0.3px; line-height: 1; }
+    .stamp { font-size: 4.5pt; color: #adb5bd; font-weight: 600; margin-top: 1.5mm; text-align: center;
+             letter-spacing: 0.2px; max-width: 28mm; line-height: 1.5; }
     .sig-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 1mm; }
     .sig-line { width: 100%; border-bottom: 0.8px solid #212529; margin-bottom: 2mm; height: 10mm; }
     .sig-label { font-size: 5.5pt; font-weight: 800; color: #495057; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }

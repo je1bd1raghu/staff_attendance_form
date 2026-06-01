@@ -51,7 +51,10 @@
 <div class="qr-print-overlay" id="qrPrintOverlay">
   <div class="qr-print-header">
     <h2>🪪 Employee ID Cards</h2>
-    <button onclick="closeQrPrint()">✕ Close</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button id="btnPrintAll" onclick="printAllIdCards()">🖨️ Print All</button>
+      <button onclick="closeQrPrint()">✕ Close</button>
+    </div>
   </div>
   <div class="qr-print-body">
     <input type="text" class="qr-search-bar" id="qrSearchInput" placeholder="🔍  Search employee…" oninput="filterQrGrid()">
@@ -268,7 +271,6 @@
 </div>
 
 <!-- THIRD-PARTY LIBRARIES -->
-<script src="libs/papaparse.min.js"></script>
 <script src="libs/fp.min.js"></script>
 <script src="libs/qrcode.min.js"></script>
 <script src="libs/jsQR.js"></script>
