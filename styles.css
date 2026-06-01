@@ -241,9 +241,6 @@ pre { background: var(--surface2); border-radius: 10px; padding: 14px; font-size
 .emp-list-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: white; border-radius: var(--radius-sm); cursor: pointer; transition: background 0.12s, transform 0.1s; border: 2px solid transparent; user-select: none; }
 .emp-list-item:hover { background: var(--primary-light); border-color: var(--primary); transform: translateX(3px); }
 .emp-list-item.selected { background: var(--primary-light); border-color: var(--primary); }
-/* Per-row checkbox */
-.emp-cb-wrap { flex-shrink: 0; display: flex; align-items: center; }
-.emp-cb-wrap input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; border-radius: 5px; }
 .emp-list-avatar { width: 42px; height: 42px; border-radius: 12px; background: var(--primary); color: white; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .emp-list-info { flex: 1; min-width: 0; }
 .emp-list-name { font-size: 15px; font-weight: 700; color: var(--text); }

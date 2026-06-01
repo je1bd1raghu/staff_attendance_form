@@ -1270,7 +1270,6 @@ async function buildQrGrid(query) {
     item.className = 'emp-list-item' + (checked ? ' selected' : '');
     item.dataset.empId = emp.id;
     item.innerHTML = `
-      <div class="emp-cb-wrap"><input type="checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation()"></div>
       <div class="emp-list-avatar">${init}</div>
       <div class="emp-list-info">
         <div class="emp-list-name">${esc(emp.name)}</div>
@@ -1278,6 +1277,7 @@ async function buildQrGrid(query) {
         <div class="emp-list-id">${esc(emp.id)}</div>
       </div>
       <div class="emp-list-arrow">›</div>`;
+    // Arrow opens the ID card modal; clicking anywhere else on the row toggles selection
     item.querySelector('.emp-list-arrow').addEventListener('click', e => { e.stopPropagation(); openIdCard(emp); });
     item.addEventListener('click', () => _toggleEmpSelection(emp.id, item));
     grid.appendChild(item);
@@ -1289,19 +1289,15 @@ function _toggleEmpSelection(empId, itemEl) {
   const on = !_selectedEmpIds.has(empId);
   if (on) _selectedEmpIds.add(empId); else _selectedEmpIds.delete(empId);
   itemEl.classList.toggle('selected', on);
-  itemEl.querySelector('input[type=checkbox]').checked = on;
   _updateSelectionUI();
 }
 
 function toggleSelectAll(checked) {
-  // Guard: skip if this was triggered by our own _updateSelectionUI write
   if (_updatingUI) return;
   document.querySelectorAll('#qrGrid .emp-list-item').forEach(item => {
     const id = item.dataset.empId;
     if (checked) _selectedEmpIds.add(id); else _selectedEmpIds.delete(id);
     item.classList.toggle('selected', checked);
-    const cb = item.querySelector('input[type=checkbox]');
-    if (cb) cb.checked = checked;
   });
   _updateSelectionUI();
 }
