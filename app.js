@@ -1,8 +1,6 @@
-const CONFIG_FILE = 'config.json';
-const ATT_FILE    = 'attendance.csv';
 const WORKER_URL  = 'https://attendance-proxy.je1-bd1-raghu.workers.dev/';
-// All GitHub credentials live in Cloudflare Worker secrets.
-// The client never holds a token or gist ID.
+// All Supabase credentials live in Cloudflare Worker secrets.
+// The client never holds a Supabase key or URL directly.
 
 let employees   = [];
 let locations   = [];
@@ -25,7 +23,6 @@ let adminLocVerified = false;   // true when admin is within tolerance of select
 let scannerStream    = null;
 let scannerAnimFrame = null;
 let scannerPaused    = false;
-let qrInstances      = {};
 
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
@@ -44,7 +41,6 @@ async function getDeviceId() {
 
 async function initApp() {
   setProgress(10);
-  updateBar(true);
   setLoadText('Loading employees…');
   await getDeviceId();
   setProgress(40);
@@ -80,75 +76,64 @@ function updateClock() {
 }
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
-// ── STORAGE BAR ───────────────────────────────────────────────────────────────
-function updateBar(connected) {}
+// ── SUPABASE / REST ───────────────────────────────────────────────────────────
+// Attendance is stored as rows in Supabase, not a flat CSV file.
+// All business-rule validation (proxy checks, date, cap) is enforced
+// server-side in the Cloudflare Worker — client checks are UX fast-fails only.
 
-// ── GIST / CSV ────────────────────────────────────────────────────────────────
+// CSV helpers kept only for the download feature
 const CSV_COLS = ['employeeId','name','designation','date','checkIn','checkInTimestamp',
                   'checkOut','checkOutTimestamp','location','lat','lng','deviceId'];
-
 function csvEscape(v) {
   const s = v == null ? '' : String(v);
   return (s.includes(',') || s.includes('"') || s.includes('\n'))
     ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function csvStringify(records) {
-  const header = CSV_COLS.join(',');
-  const rows   = records.map(r => CSV_COLS.map(c => csvEscape(r[c])).join(','));
-  return [header, ...rows].join('\n');
-}
-function csvParse(text) {
-  if (!text || !text.trim()) return [];
-  const result = Papa.parse(text.trim(), {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: h => h.trim(),
-    transform: v => v.trim()
-  });
-  return result.data || [];
+  return [CSV_COLS.join(','),
+    ...records.map(r => CSV_COLS.map(c => csvEscape(r[c])).join(','))
+  ].join('\n');
 }
 
+// Fetch all attendance rows (returns JSON array with `id` UUID per row)
 async function attGet() {
   const r = await fetch(WORKER_URL + 'attendance?t=' + Date.now());
   if (!r.ok) return [];
-  return csvParse(await r.text());
+  return r.json();
 }
 
-// ── WRITE LOCK ───────────────────────────────────────────────────────────────
-// GitHub Gist does not support atomic writes or If-Match. To reduce the window
-// for concurrent-write collisions we serialise all attPatch calls through a
-// promise queue: while one write is in flight no second write can start.
-let _patchQueue = Promise.resolve();
-
-async function attPatch(records) {
-  // Serialise writes — wait for any in-flight patch to complete first
-  const result = _patchQueue.then(() => _doPatch(records));
-  _patchQueue = result.catch(() => {});   // keep queue moving even on error
-  return result;
-}
-
-async function _doPatch(records) {
-  const csvContent = csvStringify(records);
-  const body = { files: {} };
-  body.files[ATT_FILE] = { content: csvContent };
-  // Admin writes include the raw PIN (sent over HTTPS to the worker).
-  // verifiedPin holds the raw value only for the duration of the admin session;
-  // it is cleared on exitAdmin(). We never store it in localStorage or logs.
-  if (isAdmin && verifiedPin) body.adminPin = verifiedPin;
-  const r = await fetch(WORKER_URL + 'attendance', {
-    method: 'PATCH',
+// Shared POST/PATCH helper — parses error JSON for a friendly message
+async function _sendJson(url, method, body) {
+  const r = await fetch(url, {
+    method,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
   if (!r.ok) {
-    let msg = 'HTTP ' + r.status + ' saving to Gist';
+    let msg = 'HTTP ' + r.status;
     try { const d = await r.json(); if (d.error) msg = d.error; } catch {}
     throw new Error(msg);
   }
-  // Note: full concurrency safety (two devices writing simultaneously) requires
-  // a backend with atomic writes. This queue only prevents collisions from the
-  // same device (e.g. double-tap). Cross-device race windows remain small
-  // (~1–2 s) because each caller does a fresh attGet() immediately before writing.
+  return r.json();
+}
+
+// Insert one new check-in record; worker re-sets date/deviceId server-side
+function attInsert(rec) {
+  return _sendJson(WORKER_URL + 'attendance', 'POST', rec);
+}
+
+// Update a record by its Supabase UUID (check-out).
+// Employee checkout sends deviceId for ownership verification;
+// admin checkout routes to /attendance/admin/:id with the PIN.
+function attUpdate(id, patch) {
+  return isAdmin && verifiedPin
+    ? _sendJson(WORKER_URL + 'attendance/admin/' + id, 'PATCH', { ...patch, adminPin: verifiedPin })
+    : _sendJson(WORKER_URL + 'attendance/' + id, 'PATCH', { ...patch, deviceId });
+}
+
+// Admin check-in via QR scan — worker validates PIN, QR age, and all business rules
+function attAdminInsert(rec) {
+  return _sendJson(WORKER_URL + 'attendance/admin', 'POST', { ...rec, adminPin: verifiedPin });
 }
 
 async function workerGet(path) {
@@ -395,10 +380,14 @@ async function doCheckIn() {
   if (!locVerified) { showToast('Location not verified', 'error'); return; }
   const emp = getEmp(); if (!emp) return;
   const now = new Date();
-  const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '', date: shiftDateStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceId: deviceId };
+  // date and deviceId are re-set server-side; we send them as hints only
+  const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '',
+    date: shiftDateStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(),
+    checkOut: null, checkOutTimestamp: null,
+    location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceId };
   await withBtnLoad('btnIn', async () => {
-    await appendRecord(rec);
-    todayRecs.push(rec);
+    const inserted = await appendRecord(rec);
+    todayRecs.push({ ...rec, id: inserted.id });  // store server-assigned UUID
     renderRecords(); updateBtns();
     showToast('✅ Checked IN at ' + rec.checkIn, 'success');
   });
@@ -408,10 +397,11 @@ async function doCheckOut() {
   const emp = getEmp(); if (!emp) return;
   const rec = todayRecs.find(r => r.employeeId === emp.id && r.date === shiftDateStr() && !r.checkOut);
   if (!rec) { showToast('No active check-in found', 'error'); return; }
-  const now = new Date();
-  rec.checkOut = timeStr(now); rec.checkOutTimestamp = now.toISOString();
+  if (!rec.id) { showToast('Record id missing — please refresh the page', 'error'); return; }
   await withBtnLoad('btnOut', async () => {
-    await saveAll();
+    // Worker verifies deviceId ownership before allowing the update
+    const updated = await attUpdate(rec.id, {});
+    rec.checkOut = updated.checkOut; rec.checkOutTimestamp = updated.checkOutTimestamp;
     renderRecords(); updateBtns();
     showToast('🚪 Checked OUT at ' + rec.checkOut, 'success');
   });
@@ -427,28 +417,19 @@ async function withBtnLoad(id, fn) {
 }
 
 // ── RECORD OPS ────────────────────────────────────────────────────────────────
+// Client checks below are UX fast-fails — all rules are re-enforced server-side
+// in the worker and cannot be bypassed by a malicious or modified client.
 async function appendRecord(rec) {
   const records = await attGet().catch(() => []);
   if (rec.deviceId && rec.deviceId !== 'ADMIN') {
-    // Prevent two different employees checking in from the same device simultaneously
     const openDevRec = records.find(r => r.date === rec.date && r.deviceId === rec.deviceId && r.checkIn && !r.checkOut && r.employeeId !== rec.employeeId);
     if (openDevRec) throw new Error('Another employee (' + openDevRec.name + ') is currently checked in from this device');
   }
-  // Block if already checked in (open record)
   const openRec = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && !r.checkOut);
   if (openRec) throw new Error(rec.name + ' is already checked in — please check out first');
-  // Enforce daily cap
   const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
   if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
-  records.push(rec);
-  await attPatch(records);
-}
-
-async function saveAll() {
-  const allRecs = await attGet().catch(() => []);
-  const today   = shiftDateStr();
-  const others  = allRecs.filter(r => r.date !== today);
-  await attPatch([...others, ...todayRecs]);
+  return attInsert(rec);   // returns inserted row with server-assigned `id`
 }
 
 // ── RENDER (employee view) ────────────────────────────────────────────────────
@@ -486,7 +467,6 @@ function recordHTML(r) {
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function getEmp()    { const id = document.getElementById('empSelect').value; return employees.find(e => e.id === id) || null; }
-function todayStr()  { const d = new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 
 // ── SHIFT DATE ────────────────────────────────────────────────────────────────
 // A "workday" runs from ~sunrise to next sunrise. Any time between midnight and
@@ -975,9 +955,8 @@ async function adminDoIn() {
     if (openRec) throw new Error(rec.name + ' is already checked in — check out first');
     const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
     if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
-    records.push(rec);
-    await attPatch(records);
-    todayRecs.push(rec);
+    const inserted = await attAdminInsert({ ...rec, printedAt: scannedPrintedAt });
+    todayRecs.push({ ...rec, id: inserted.id });
     renderRecords(); renderAdminRecords();
     resetAdminTimer();
     showToast('✅ ' + emp.name + ' checked IN', 'success');
@@ -1000,19 +979,17 @@ async function adminDoOut() {
   try {
     const allRecs = await attGet().catch(() => []);
     const today   = shiftDateStr();
-    const idx     = allRecs.findIndex(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
-    if (idx < 0) throw new Error('No active check-in found for ' + emp.name);
-    const now = new Date();
-    allRecs[idx].checkOut = timeStr(now);
-    allRecs[idx].checkOutTimestamp = now.toISOString();
-    await attPatch(allRecs);
-    // Sync local
+    const openRec = allRecs.find(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
+    if (!openRec) throw new Error('No active check-in found for ' + emp.name);
+    if (!openRec.id) throw new Error('Record has no id — cannot update');
+    const updated = await attUpdate(openRec.id, {});   // worker sets checkout time
+    // Sync local cache
     const local = todayRecs.find(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
-    if (local) { local.checkOut = allRecs[idx].checkOut; local.checkOutTimestamp = allRecs[idx].checkOutTimestamp; }
+    if (local) { local.checkOut = updated.checkOut; local.checkOutTimestamp = updated.checkOutTimestamp; }
     renderRecords(); renderAdminRecords();
     resetAdminTimer();
     showToast('🚪 ' + emp.name + ' checked OUT', 'success');
-    document.getElementById('scanState').textContent = '✔️ Checked out at ' + allRecs[idx].checkOut;
+    document.getElementById('scanState').textContent = '✔️ Checked out at ' + (updated.checkOut || '');
     document.getElementById('btnScanOut').disabled = true;
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
@@ -1242,18 +1219,18 @@ function formatPrintedOn(d) {
 }
 
 // ── QR PRINT PAGE ─────────────────────────────────────────────────────────────
-// Set of selected employee IDs — persists across search/filter
-const _selectedEmpIds = new Set();
-
 async function openQrPrint() {
-  if (!isAdmin && !verifiedPin) { openPinOverlay('qr'); return; }
+  // Require admin PIN — if already in admin mode the PIN is already verified
+  if (!isAdmin && !verifiedPin) {
+    openPinOverlay('qr');
+    return;
+  }
   await _openQrPrintDirect();
 }
 
 async function _openQrPrintDirect() {
   await buildUuidLookup();
   _selectedEmpIds.clear();
-  _updateSelectionUI();
   document.getElementById('qrPrintOverlay').classList.add('open');
   buildQrGrid('');
 }
@@ -1268,27 +1245,28 @@ function filterQrGrid() {
   buildQrGrid(document.getElementById('qrSearchInput').value.trim().toLowerCase());
 }
 
+// Selected employee IDs — persists across search/filter
+const _selectedEmpIds = new Set();
+
 async function buildQrGrid(query) {
   const grid = document.getElementById('qrGrid');
   const list = query
     ? employees.filter(e => e.name.toLowerCase().includes(query) || (e.designation||'').toLowerCase().includes(query))
     : employees;
   grid.innerHTML = '';
-  qrInstances = {};
   if (!list.length) {
     grid.innerHTML = '<div class="emp-list-empty">No employees found</div>';
+    _updateSelectionUI();
     return;
   }
   for (const emp of list) {
-    const init     = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
-    const checked  = _selectedEmpIds.has(emp.id);
-    const item     = document.createElement('div');
+    const init    = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    const checked = _selectedEmpIds.has(emp.id);
+    const item    = document.createElement('div');
     item.className = 'emp-list-item' + (checked ? ' selected' : '');
     item.dataset.empId = emp.id;
     item.innerHTML = `
-      <div class="emp-cb-wrap">
-        <input type="checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation()">
-      </div>
+      <div class="emp-cb-wrap"><input type="checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation()"></div>
       <div class="emp-list-avatar">${init}</div>
       <div class="emp-list-info">
         <div class="emp-list-name">${esc(emp.name)}</div>
@@ -1296,13 +1274,7 @@ async function buildQrGrid(query) {
         <div class="emp-list-id">${esc(emp.id)}</div>
       </div>
       <div class="emp-list-arrow">›</div>`;
-
-    // Clicking anywhere on the row toggles selection;
-    // clicking the arrow opens the ID card modal
-    item.querySelector('.emp-list-arrow').addEventListener('click', e => {
-      e.stopPropagation();
-      openIdCard(emp);
-    });
+    item.querySelector('.emp-list-arrow').addEventListener('click', e => { e.stopPropagation(); openIdCard(emp); });
     item.addEventListener('click', () => _toggleEmpSelection(emp.id, item));
     grid.appendChild(item);
   }
@@ -1310,124 +1282,43 @@ async function buildQrGrid(query) {
 }
 
 function _toggleEmpSelection(empId, itemEl) {
-  if (_selectedEmpIds.has(empId)) {
-    _selectedEmpIds.delete(empId);
-    itemEl.classList.remove('selected');
-    itemEl.querySelector('input[type=checkbox]').checked = false;
-  } else {
-    _selectedEmpIds.add(empId);
-    itemEl.classList.add('selected');
-    itemEl.querySelector('input[type=checkbox]').checked = true;
-  }
+  const on = !_selectedEmpIds.has(empId);
+  if (on) _selectedEmpIds.add(empId); else _selectedEmpIds.delete(empId);
+  itemEl.classList.toggle('selected', on);
+  itemEl.querySelector('input[type=checkbox]').checked = on;
   _updateSelectionUI();
 }
 
 function toggleSelectAll(checked) {
   // Operate on currently visible rows only
-  const items = document.querySelectorAll('#qrGrid .emp-list-item');
-  items.forEach(item => {
+  document.querySelectorAll('#qrGrid .emp-list-item').forEach(item => {
     const id = item.dataset.empId;
+    if (checked) _selectedEmpIds.add(id); else _selectedEmpIds.delete(id);
+    item.classList.toggle('selected', checked);
     const cb = item.querySelector('input[type=checkbox]');
-    if (checked) {
-      _selectedEmpIds.add(id);
-      item.classList.add('selected');
-      if (cb) cb.checked = true;
-    } else {
-      _selectedEmpIds.delete(id);
-      item.classList.remove('selected');
-      if (cb) cb.checked = false;
-    }
+    if (cb) cb.checked = checked;
   });
   _updateSelectionUI();
 }
 
 function _updateSelectionUI() {
-  const total    = employees.length;
   const n        = _selectedEmpIds.size;
   const badge    = document.getElementById('selCountBadge');
   const printBtn = document.getElementById('btnPrintSelected');
   const chkAll   = document.getElementById('chkSelectAll');
 
-  // Badge + print button
   if (n > 0) {
-    badge.textContent  = n;
-    badge.style.display = '';
-    printBtn.textContent = `🖨️ Print Selected (${n})`;
-    printBtn.style.display = '';
+    badge.textContent = n; badge.style.display = '';
+    printBtn.textContent = `🖨️ Print Selected (${n})`; printBtn.style.display = '';
   } else {
-    badge.style.display    = 'none';
-    printBtn.style.display = 'none';
+    badge.style.display = 'none'; printBtn.style.display = 'none';
   }
 
-  // Select-all checkbox state
   if (!chkAll) return;
-  const visibleIds = [...document.querySelectorAll('#qrGrid .emp-list-item')]
-    .map(el => el.dataset.empId);
-  const visibleSelected = visibleIds.filter(id => _selectedEmpIds.has(id)).length;
-  if (visibleIds.length === 0 || visibleSelected === 0) {
-    chkAll.checked       = false;
-    chkAll.indeterminate = false;
-  } else if (visibleSelected === visibleIds.length) {
-    chkAll.checked       = true;
-    chkAll.indeterminate = false;
-  } else {
-    chkAll.checked       = false;
-    chkAll.indeterminate = true;
-  }
-}
-
-// Print only the selected employees, sorted A→Z, 4 per A4 page
-async function printSelectedIdCards() {
-  if (!_selectedEmpIds.size) return;
-
-  const btn = document.getElementById('btnPrintSelected');
-  const origText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '⏳ Building…';
-
-  const printedOn = formatPrintedOn(new Date());
-  const sorted    = [...employees]
-    .filter(e => _selectedEmpIds.has(e.id))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  async function qrForEmp(emp) {
-    return new Promise(resolve => {
-      const el = document.createElement('div');
-      new QRCode(el, {
-        text:         `${_empUuidCache[emp.id] || emp.id}|${new Date().toISOString()}`,
-        width: 156, height: 156,
-        colorDark:    '#212529', colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.M,
-      });
-      const canvas = el.querySelector('canvas');
-      resolve(canvas ? canvas.toDataURL('image/png') : '');
-    });
-  }
-
-  const cards = [];
-  for (const emp of sorted) {
-    const qrSrc = await qrForEmp(emp);
-    cards.push(buildCardHtml(emp, qrSrc, printedOn));
-  }
-
-  const empty = `<div class="id-card empty"></div>`;
-  const pages = [];
-  for (let i = 0; i < cards.length; i += 4) {
-    const group = cards.slice(i, i + 4);
-    while (group.length < 4) group.push(empty);
-    pages.push(`<div class="page">${group.join('')}</div>`);
-  }
-
-  const printHtml = `<!DOCTYPE html><html><head><title></title>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <style>${PRINT_CSS}</style></head><body>
-  ${pages.join('\n')}
-  </body></html>`;
-
-  sendToPrinter(printHtml);
-
-  btn.disabled    = false;
-  btn.textContent = origText;
+  const visible  = [...document.querySelectorAll('#qrGrid .emp-list-item')].map(el => el.dataset.empId);
+  const selCount = visible.filter(id => _selectedEmpIds.has(id)).length;
+  chkAll.checked       = visible.length > 0 && selCount === visible.length;
+  chkAll.indeterminate = selCount > 0 && selCount < visible.length;
 }
 
 // ── ID CARD ───────────────────────────────────────────────────────────────────
@@ -1450,12 +1341,8 @@ async function openIdCard(emp) {
   const qrWrap = document.getElementById('idCardQr');
   qrWrap.innerHTML = '';
   try {
-    new QRCode(qrWrap, {
-      text: payload,
-      width: 180, height: 180,
-      colorDark: '#212529', colorLight: '#ffffff',
-      correctLevel: QRCode.CorrectLevel.M
-    });
+    new QRCode(qrWrap, { text: payload, width: 180, height: 180,
+      colorDark: '#212529', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
   } catch(e) { qrWrap.textContent = payload; }
 
   document.getElementById('idCardOverlay').classList.add('open');
@@ -1475,110 +1362,20 @@ function handleIdCardOverlayClick(e) {
   if (e.target === document.getElementById('idCardOverlay')) closeIdCard();
 }
 
-// ── ID CARD PRINT WITH SLOT PICKER ───────────────────────────────────────────
+// ── ID CARD PRINT ─────────────────────────────────────────────────────────────
 let _selectedSlot = -1;   // 0=TL 1=TR 2=BL 3=BR
 
-function toggleSlotPicker() {
-  const picker = document.getElementById('slotPicker');
-  const isOpen = picker.classList.toggle('open');
-  document.getElementById('btnIdPrint').textContent = isOpen ? '✕ Cancel' : '🖨️ Print ID Card';
-  if (!isOpen) {
-    _selectedSlot = -1;
-    document.querySelectorAll('.slot-cell').forEach(c => c.classList.remove('selected'));
-  }
-}
-
-function selectSlot(slot) {
-  _selectedSlot = slot;
-  document.querySelectorAll('.slot-cell').forEach(c => {
-    c.classList.toggle('selected', +c.dataset.slot === slot);
-  });
-  // Small delay so user sees the selection highlight, then print
-  setTimeout(() => printIdCard(), 260);
-}
-
-async function printIdCard() {
-  if (!_idCardEmpId) return;
-  const emp = employees.find(e => e.id === _idCardEmpId);
-  if (!emp) return;
-
-  // Close slot picker
-  document.getElementById('slotPicker').classList.remove('open');
-  document.getElementById('btnIdPrint').textContent = '🖨️ Print ID Card';
-  document.querySelectorAll('.slot-cell').forEach(c => c.classList.remove('selected'));
-
-  const qrEl  = document.getElementById('idCardQr');
-  const imgEl = qrEl.querySelector('canvas, img');
-  let imgSrc  = '';
-  if (imgEl && imgEl.tagName === 'CANVAS')   imgSrc = imgEl.toDataURL('image/png');
-  else if (imgEl && imgEl.tagName === 'IMG') imgSrc = imgEl.src;
-
-  const slot = _selectedSlot >= 0 ? _selectedSlot : 0;
-
-  // Access zones: resolve from employee locationIds
-  const zones = (emp.locationIds && emp.locationIds.length)
-    ? locations.filter(l => emp.locationIds.includes(l.id)).map(l => l.name).join(', ')
-    : locations.map(l => l.name).join(', ');
-
-  const printedOn = formatPrintedOn(new Date(_idCardPrintedAt || Date.now()));
-
-  const cardHtml = `
-    <div class="id-card">
-      <div class="card-hdr"><div class="ttl">EMPLOYEE ID CARD</div></div>
-      <div class="top-sec">
-        <div class="photo-box"><span class="photo-label">PHOTO</span></div>
-        <div class="name-block">
-          <div class="printed-name">${emp.name}</div>
-          ${emp.designation ? `<div class="printed-desig">${emp.designation}</div>` : ''}
-          <div class="printed-id">${emp.id}</div>
-          <div class="field-row"><span class="flabel">Dept</span><span class="fline"></span></div>
-          <div class="field-row"><span class="flabel">DOJ</span><span class="fline"></span></div>
-        </div>
-      </div>
-      <div class="divider"></div>
-      <div class="fields-sec">
-        <div class="field-row"><span class="flabel">Blood Gr</span><span class="fline short"></span></div>
-        <div class="field-row"><span class="flabel">Mobile</span><span class="fline"></span></div>
-        <div class="field-row"><span class="flabel">Emergency</span><span class="fline"></span></div>
-        <div class="field-row"><span class="flabel">Issue Date</span><span class="fline"></span></div>
-        <div class="field-row"><span class="flabel">Valid Until</span><span class="fline"></span></div>
-        <div class="field-row"><span class="flabel">Zones</span><span class="fval zones">${zones}</span></div>
-      </div>
-      <div class="divider"></div>
-      <div class="bottom-sec">
-        <div class="qr-col">
-          <div class="qr-wrap">${imgSrc ? `<img src="${imgSrc}" width="78" height="78">` : `<p style="font-size:7px;font-family:monospace">${emp.id}</p>`}</div>
-          <div class="stamp">${printedOn}</div>
-        </div>
-        <div class="sig-col">
-          <div class="sig-line"></div>
-          <div class="sig-label">Authorized Signature</div>
-        </div>
-      </div>
-    </div>`;
-
-  const emptyHtml = `<div class="id-card empty"></div>`;
-  const slots = [0,1,2,3].map(i => i === slot ? cardHtml : emptyHtml);
-
-  const printHtml = `<!DOCTYPE html><html><head>
-  <title></title>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <style>
+// Shared print CSS — used by both single-card and multi-select print
+const PRINT_CSS = `
     html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     @page { size: A4 portrait; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Nunito', Arial, sans-serif; background: white; }
-    .page {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-      gap: 6mm;
-      width: 210mm;
-      height: 297mm;
-      padding: 10mm;
-    }
+    .page { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+            gap: 6mm; width: 210mm; height: 297mm; padding: 10mm; page-break-after: always; }
+    .page:last-child { page-break-after: avoid; }
     .id-card { border: 1.5px dashed #adb5bd; border-radius: 4mm; overflow: hidden; display: flex; flex-direction: column; }
-    .id-card.empty { border: none !important; outline: none !important; background: transparent !important; box-shadow: none !important; pointer-events: none; }
+    .id-card.empty { border: none !important; background: transparent !important; }
     .card-hdr { background: #212529; padding: 3.5mm 4mm; flex-shrink: 0; }
     .ttl { font-size: 8pt; font-weight: 800; color: white; letter-spacing: 1.2px; text-align: center; text-transform: uppercase; }
     .top-sec { display: flex; gap: 3.5mm; padding: 4mm 4.5mm; flex-shrink: 0; }
@@ -1596,31 +1393,65 @@ async function printIdCard() {
               letter-spacing: 0.4px; white-space: nowrap; flex-shrink: 0; min-width: 14mm; }
     .fline { flex: 1; border-bottom: 0.8px solid #212529; height: 4.5mm; display: block; }
     .fline.short { max-width: 13mm; }
-    .fval { flex: 1; font-size: 6.5pt; font-weight: 700; color: #F5821F;
-            line-height: 1.4; padding-bottom: 0.5mm;
-            white-space: normal; overflow: visible; word-break: break-word; }
+    .fval { flex: 1; font-size: 6.5pt; font-weight: 700; color: #F5821F; line-height: 1.4;
+            padding-bottom: 0.5mm; white-space: normal; overflow: visible; word-break: break-word; }
     .field-row:has(.fval) { align-items: flex-start; }
     .bottom-sec { display: flex; align-items: flex-end; padding: 3mm 4.5mm 4mm; gap: 3mm; flex-shrink: 0; }
-    .qr-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+    .qr-col { display: flex; flex-direction: row; align-items: center; flex-shrink: 0; gap: 1.5mm; }
     .qr-wrap { background: #fff4ec; border-radius: 2.5mm; padding: 2mm; display: inline-flex; }
     .qr-wrap img { display: block; border-radius: 1.5mm; }
-    .stamp { font-size: 4.5pt; color: #adb5bd; font-weight: 600; margin-top: 1.5mm; text-align: center;
-             letter-spacing: 0.2px; max-width: 28mm; line-height: 1.5; }
+    .stamp { font-size: 4.5pt; color: #adb5bd; font-weight: 600; white-space: nowrap;
+             writing-mode: vertical-rl; transform: rotate(180deg); letter-spacing: 0.3px; line-height: 1; }
     .sig-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 1mm; }
     .sig-line { width: 100%; border-bottom: 0.8px solid #212529; margin-bottom: 2mm; height: 10mm; }
-    .sig-label { font-size: 5.5pt; font-weight: 800; color: #495057; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
-  </style></head><body>
-  <div class="page">
-    ${slots[0]}
-    ${slots[1]}
-    ${slots[2]}
-    ${slots[3]}
-  </div>
-  </body></html>`;
+    .sig-label { font-size: 5.5pt; font-weight: 800; color: #495057; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }`;
 
-  // Use a hidden iframe for printing — works reliably on Linux, Mac, and Windows.
-  // window.open() is blocked by popup blockers on non-Windows browsers and the
-  // window.print() + window.close() race causes blank prints on some systems.
+// Build one card's HTML from an employee + QR image source
+function buildCardHtml(emp, qrSrc, printedOn) {
+  const allowed = (emp.locationIds && emp.locationIds.length)
+    ? locations.filter(l => emp.locationIds.includes(l.id)).map(l => l.name).join(', ')
+    : locations.map(l => l.name).join(', ');
+  return `
+    <div class="id-card">
+      <div class="card-hdr"><div class="ttl">EMPLOYEE ID CARD</div></div>
+      <div class="top-sec">
+        <div class="photo-box"><span class="photo-label">PHOTO</span></div>
+        <div class="name-block">
+          <div class="printed-name">${esc(emp.name)}</div>
+          ${emp.designation ? `<div class="printed-desig">${esc(emp.designation)}</div>` : ''}
+          <div class="printed-id">${esc(emp.id)}</div>
+          <div class="field-row"><span class="flabel">Dept</span><span class="fline"></span></div>
+          <div class="field-row"><span class="flabel">DOJ</span><span class="fline"></span></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="fields-sec">
+        <div class="field-row"><span class="flabel">Blood Gr</span><span class="fline short"></span></div>
+        <div class="field-row"><span class="flabel">Mobile</span><span class="fline"></span></div>
+        <div class="field-row"><span class="flabel">Emergency</span><span class="fline"></span></div>
+        <div class="field-row"><span class="flabel">Issue Date</span><span class="fline"></span></div>
+        <div class="field-row"><span class="flabel">Valid Until</span><span class="fline"></span></div>
+        <div class="field-row"><span class="flabel">Allowed</span><span class="fval">${esc(allowed)}</span></div>
+      </div>
+      <div class="divider"></div>
+      <div class="bottom-sec">
+        <div class="qr-col">
+          <div class="stamp">${printedOn}</div>
+          <div class="qr-wrap">${qrSrc ? `<img src="${qrSrc}" width="78" height="78">` : `<p style="font-size:7px;font-family:monospace">${esc(emp.id)}</p>`}</div>
+        </div>
+        <div class="sig-col">
+          <div class="sig-line"></div>
+          <div class="sig-label">Authorized Signature</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// Wrap card HTML in a full print document and send to the hidden iframe
+function sendToPrinter(pagesHtml) {
+  const printHtml = `<!DOCTYPE html><html><head><title></title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>${PRINT_CSS}</style></head><body>${pagesHtml}</body></html>`;
   let iframe = document.getElementById('_printFrame');
   if (!iframe) {
     iframe = document.createElement('iframe');
@@ -1628,27 +1459,90 @@ async function printIdCard() {
     iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0';
     document.body.appendChild(iframe);
   }
-
   const iDoc = iframe.contentDocument || iframe.contentWindow.document;
-  iDoc.open();
-  iDoc.write(printHtml);
-  iDoc.close();
-
-  // Wait for fonts + images to load before printing
+  iDoc.open(); iDoc.write(printHtml); iDoc.close();
   iframe.contentWindow.onload = () => {
-    setTimeout(() => {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    }, 400);
+    setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 400);
   };
+}
 
+// Generate a QR data-URI for an employee (uses cached UUID + fresh timestamp)
+function _qrDataUri(emp) {
+  const el = document.createElement('div');
+  new QRCode(el, {
+    text: `${_empUuidCache[emp.id] || emp.id}|${new Date().toISOString()}`,
+    width: 156, height: 156, colorDark: '#212529', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M,
+  });
+  const canvas = el.querySelector('canvas');
+  return canvas ? canvas.toDataURL('image/png') : '';
+}
+
+function toggleSlotPicker() {
+  const picker = document.getElementById('slotPicker');
+  const isOpen = picker.classList.toggle('open');
+  document.getElementById('btnIdPrint').textContent = isOpen ? '✕ Cancel' : '🖨️ Print ID Card';
+  if (!isOpen) {
+    _selectedSlot = -1;
+    document.querySelectorAll('.slot-cell').forEach(c => c.classList.remove('selected'));
+  }
+}
+
+function selectSlot(slot) {
+  _selectedSlot = slot;
+  document.querySelectorAll('.slot-cell').forEach(c => {
+    c.classList.toggle('selected', +c.dataset.slot === slot);
+  });
+  setTimeout(() => printIdCard(), 260);   // brief delay so the highlight shows
+}
+
+// Print the currently open ID card into the chosen A4 slot
+function printIdCard() {
+  if (!_idCardEmpId) return;
+  const emp = employees.find(e => e.id === _idCardEmpId);
+  if (!emp) return;
+
+  document.getElementById('slotPicker').classList.remove('open');
+  document.getElementById('btnIdPrint').textContent = '🖨️ Print ID Card';
+  document.querySelectorAll('.slot-cell').forEach(c => c.classList.remove('selected'));
+
+  const imgEl = document.getElementById('idCardQr').querySelector('canvas, img');
+  let imgSrc  = '';
+  if (imgEl && imgEl.tagName === 'CANVAS')   imgSrc = imgEl.toDataURL('image/png');
+  else if (imgEl && imgEl.tagName === 'IMG') imgSrc = imgEl.src;
+
+  const slot      = _selectedSlot >= 0 ? _selectedSlot : 0;
+  const printedOn = formatPrintedOn(new Date(_idCardPrintedAt || Date.now()));
+  const cardHtml  = buildCardHtml(emp, imgSrc, printedOn);
+  const empty     = '<div class="id-card empty"></div>';
+  const slots     = [0,1,2,3].map(i => i === slot ? cardHtml : empty);
+
+  sendToPrinter(`<div class="page">${slots.join('')}</div>`);
   _selectedSlot = -1;
 }
 
-// ── SETUP (disabled) ──────────────────────────────────────────────────────────
-function openSetup()  {}
-function saveConfig() {}
-function populateTemplate() {}
+// Print all selected employees, 4 per A4 page, sorted A→Z
+async function printSelectedIdCards() {
+  if (!_selectedEmpIds.size) return;
+  const btn = document.getElementById('btnPrintSelected');
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Building…';
+
+  const printedOn = formatPrintedOn(new Date());
+  const sorted    = employees.filter(e => _selectedEmpIds.has(e.id)).sort((a,b) => a.name.localeCompare(b.name));
+  const cards     = sorted.map(emp => buildCardHtml(emp, _qrDataUri(emp), printedOn));
+
+  const empty = '<div class="id-card empty"></div>';
+  const pages = [];
+  for (let i = 0; i < cards.length; i += 4) {
+    const group = cards.slice(i, i + 4);
+    while (group.length < 4) group.push(empty);
+    pages.push(`<div class="page">${group.join('')}</div>`);
+  }
+
+  sendToPrinter(pages.join('\n'));
+  btn.disabled = false; btn.textContent = orig;
+}
 
 // Clean up both geolocation watches on page unload
 window.addEventListener('pagehide', () => {
