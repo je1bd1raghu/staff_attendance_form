@@ -221,14 +221,29 @@ pre { background: var(--surface2); border-radius: 10px; padding: 14px; font-size
 .qr-print-overlay.open { display: block; }
 .qr-print-header { background: linear-gradient(135deg, #212529 0%, #343a40 100%); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
 .qr-print-header h2 { font-size: 18px; font-weight: 800; }
-.qr-print-header button { background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 8px; padding: 8px 16px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; }
+.qr-print-header button { background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 8px; padding: 8px 16px; font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.qr-print-header button:hover { background: rgba(255,255,255,0.32); }
 .qr-print-header button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Select-all checkbox */
+.sel-all-wrap { display: flex; align-items: center; cursor: pointer; flex-shrink: 0; }
+.sel-all-wrap input[type=checkbox] { position: absolute; opacity: 0; width: 0; height: 0; }
+.sel-all-box { width: 20px; height: 20px; border: 2.5px solid rgba(255,255,255,0.6); border-radius: 6px; background: transparent; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+.sel-all-wrap input:checked  + .sel-all-box { background: var(--primary); border-color: var(--primary); }
+.sel-all-wrap input:checked  + .sel-all-box::after { content: '✓'; font-size: 13px; color: white; font-weight: 800; line-height: 1; }
+.sel-all-wrap input:indeterminate + .sel-all-box { background: rgba(245,130,31,0.5); border-color: var(--primary); }
+.sel-all-wrap input:indeterminate + .sel-all-box::after { content: '–'; font-size: 14px; color: white; font-weight: 800; line-height: 1; }
+/* Selection count badge */
+.sel-count-badge { background: var(--primary); color: white; font-size: 12px; font-weight: 800; border-radius: 20px; padding: 2px 9px; white-space: nowrap; }
 .qr-print-body { padding: 16px; max-width: 600px; margin: 0 auto; }
 .qr-search-bar { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 15px; margin-bottom: 12px; outline: none; background: white; }
 .qr-search-bar:focus { border-color: var(--primary); }
 .emp-list { display: flex; flex-direction: column; gap: 2px; }
-.emp-list-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: white; border-radius: var(--radius-sm); cursor: pointer; transition: background 0.12s, transform 0.1s; border: 2px solid transparent; }
+.emp-list-item { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: white; border-radius: var(--radius-sm); cursor: pointer; transition: background 0.12s, transform 0.1s; border: 2px solid transparent; user-select: none; }
 .emp-list-item:hover { background: var(--primary-light); border-color: var(--primary); transform: translateX(3px); }
+.emp-list-item.selected { background: var(--primary-light); border-color: var(--primary); }
+/* Per-row checkbox */
+.emp-cb-wrap { flex-shrink: 0; display: flex; align-items: center; }
+.emp-cb-wrap input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; border-radius: 5px; }
 .emp-list-avatar { width: 42px; height: 42px; border-radius: 12px; background: var(--primary); color: white; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .emp-list-info { flex: 1; min-width: 0; }
 .emp-list-name { font-size: 15px; font-weight: 700; color: var(--text); }
@@ -254,10 +269,10 @@ pre { background: var(--surface2); border-radius: 10px; padding: 14px; font-size
 .id-card-desig { font-size: 13px; color: var(--primary); font-weight: 700; margin-top: 4px; }
 .id-card-empid { font-size: 12px; color: var(--text3); font-weight: 700; font-family: monospace; margin-top: 6px; letter-spacing: 0.5px; }
 .id-card-divider { height: 1px; background: var(--border); margin: 0 20px; }
-.id-card-qr-section { padding: 16px 20px 8px; display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.id-card-qr-section { padding: 16px 20px 8px; display: flex; flex-direction: column; align-items: center; }
 .id-card-qr-wrap { background: var(--surface2); border-radius: 14px; padding: 14px; display: inline-flex; }
 .id-card-qr-wrap canvas, .id-card-qr-wrap img { display: block; border-radius: 8px; }
-.id-card-stamp { font-size: 10px; color: var(--text3); font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); line-height: 1; }
+.id-card-stamp { font-size: 10px; color: var(--text3); font-weight: 600; margin-top: 10px; letter-spacing: 0.3px; text-align: center; }
 .id-card-footer { padding: 16px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .btn-id-print { padding: 14px 10px; border: none; border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: var(--primary); color: white; }
 .btn-id-close  { padding: 14px 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer; background: white; color: var(--text2); }

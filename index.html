@@ -50,9 +50,16 @@
 <!-- ID CARD LIST OVERLAY -->
 <div class="qr-print-overlay" id="qrPrintOverlay">
   <div class="qr-print-header">
-    <h2>🪪 Employee ID Cards</h2>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <label class="sel-all-wrap" title="Select all">
+        <input type="checkbox" id="chkSelectAll" onchange="toggleSelectAll(this.checked)">
+        <span class="sel-all-box"></span>
+      </label>
+      <h2>🪪 ID Cards</h2>
+      <span class="sel-count-badge" id="selCountBadge" style="display:none"></span>
+    </div>
     <div style="display:flex;gap:8px;align-items:center;">
-      <button id="btnPrintAll" onclick="printAllIdCards()">🖨️ Print All</button>
+      <button id="btnPrintSelected" onclick="printSelectedIdCards()" style="display:none">🖨️ Print Selected</button>
       <button onclick="closeQrPrint()">✕ Close</button>
     </div>
   </div>
@@ -79,8 +86,8 @@
     </div>
     <div class="id-card-divider"></div>
     <div class="id-card-qr-section">
-      <div class="id-card-stamp"   id="idCardStamp"></div>
       <div class="id-card-qr-wrap" id="idCardQr"></div>
+      <div class="id-card-stamp"   id="idCardStamp"></div>
     </div>
     <!-- Slot picker: shown when Print is clicked -->
     <div class="slot-picker" id="slotPicker">
@@ -271,6 +278,7 @@
 </div>
 
 <!-- THIRD-PARTY LIBRARIES -->
+<script src="libs/papaparse.min.js"></script>
 <script src="libs/fp.min.js"></script>
 <script src="libs/qrcode.min.js"></script>
 <script src="libs/jsQR.js"></script>

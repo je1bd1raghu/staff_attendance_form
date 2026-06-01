@@ -1,6 +1,8 @@
+const CONFIG_FILE = 'config.json';
+const ATT_FILE    = 'attendance.csv';
 const WORKER_URL  = 'https://attendance-proxy.je1-bd1-raghu.workers.dev/';
-// All Supabase credentials live in Cloudflare Worker secrets.
-// The client never holds a Supabase key or URL directly.
+// All GitHub credentials live in Cloudflare Worker secrets.
+// The client never holds a token or gist ID.
 
 let employees   = [];
 let locations   = [];
@@ -81,69 +83,72 @@ function pad(n) { return n < 10 ? '0' + n : '' + n; }
 // ── STORAGE BAR ───────────────────────────────────────────────────────────────
 function updateBar(connected) {}
 
-// ── SUPABASE / REST ───────────────────────────────────────────────────────────
-// attendance rows have the same field names as the old CSV columns plus an `id`
-// (UUID) assigned by Supabase on insert.
-const REC_FIELDS = ['employeeId','name','designation','date','checkIn','checkInTimestamp',
-                    'checkOut','checkOutTimestamp','location','lat','lng','deviceId'];
+// ── GIST / CSV ────────────────────────────────────────────────────────────────
+const CSV_COLS = ['employeeId','name','designation','date','checkIn','checkInTimestamp',
+                  'checkOut','checkOutTimestamp','location','lat','lng','deviceId'];
 
-// Fetch all attendance rows from Supabase via the worker
+function csvEscape(v) {
+  const s = v == null ? '' : String(v);
+  return (s.includes(',') || s.includes('"') || s.includes('\n'))
+    ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function csvStringify(records) {
+  const header = CSV_COLS.join(',');
+  const rows   = records.map(r => CSV_COLS.map(c => csvEscape(r[c])).join(','));
+  return [header, ...rows].join('\n');
+}
+function csvParse(text) {
+  if (!text || !text.trim()) return [];
+  const result = Papa.parse(text.trim(), {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: h => h.trim(),
+    transform: v => v.trim()
+  });
+  return result.data || [];
+}
+
 async function attGet() {
   const r = await fetch(WORKER_URL + 'attendance?t=' + Date.now());
   if (!r.ok) return [];
-  return r.json();   // array of row objects, each with an `id` UUID
+  return csvParse(await r.text());
 }
 
-// Insert a single new attendance record (employee self check-in).
-// Returns the inserted row (including its Supabase-assigned `id`).
-async function attInsert(rec) {
+// ── WRITE LOCK ───────────────────────────────────────────────────────────────
+// GitHub Gist does not support atomic writes or If-Match. To reduce the window
+// for concurrent-write collisions we serialise all attPatch calls through a
+// promise queue: while one write is in flight no second write can start.
+let _patchQueue = Promise.resolve();
+
+async function attPatch(records) {
+  // Serialise writes — wait for any in-flight patch to complete first
+  const result = _patchQueue.then(() => _doPatch(records));
+  _patchQueue = result.catch(() => {});   // keep queue moving even on error
+  return result;
+}
+
+async function _doPatch(records) {
+  const csvContent = csvStringify(records);
+  const body = { files: {} };
+  body.files[ATT_FILE] = { content: csvContent };
+  // Admin writes include the raw PIN (sent over HTTPS to the worker).
+  // verifiedPin holds the raw value only for the duration of the admin session;
+  // it is cleared on exitAdmin(). We never store it in localStorage or logs.
+  if (isAdmin && verifiedPin) body.adminPin = verifiedPin;
   const r = await fetch(WORKER_URL + 'attendance', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(rec),
-  });
-  if (!r.ok) {
-    let msg = 'HTTP ' + r.status + ' saving to Supabase';
-    try { const d = await r.json(); if (d.error) msg = d.error; } catch {}
-    throw new Error(msg);
-  }
-  return r.json();   // inserted row with `id`
-}
-
-// Update an existing attendance record by its Supabase UUID (for check-out).
-async function attUpdate(id, patch) {
-  const endpoint = isAdmin && verifiedPin
-    ? WORKER_URL + 'attendance/admin/' + id
-    : WORKER_URL + 'attendance/' + id;
-  const body = isAdmin && verifiedPin
-    ? { ...patch, adminPin: verifiedPin }
-    : patch;
-  const r = await fetch(endpoint, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(body)
   });
   if (!r.ok) {
-    let msg = 'HTTP ' + r.status + ' updating record';
+    let msg = 'HTTP ' + r.status + ' saving to Gist';
     try { const d = await r.json(); if (d.error) msg = d.error; } catch {}
     throw new Error(msg);
   }
-  return r.json();
-}
-
-// Admin insert (check-in via QR scan) — worker validates PIN server-side
-async function attAdminInsert(rec) {
-  const r = await fetch(WORKER_URL + 'attendance/admin', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...rec, adminPin: verifiedPin }),
-  });
-  if (!r.ok) {
-    let msg = 'HTTP ' + r.status + ' saving to Supabase';
-    try { const d = await r.json(); if (d.error) msg = d.error; } catch {}
-    throw new Error(msg);
-  }
-  return r.json();
+  // Note: full concurrency safety (two devices writing simultaneously) requires
+  // a backend with atomic writes. This queue only prevents collisions from the
+  // same device (e.g. double-tap). Cross-device race windows remain small
+  // (~1–2 s) because each caller does a fresh attGet() immediately before writing.
 }
 
 async function workerGet(path) {
@@ -392,10 +397,8 @@ async function doCheckIn() {
   const now = new Date();
   const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '', date: shiftDateStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(), checkOut: null, checkOutTimestamp: null, location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceId: deviceId };
   await withBtnLoad('btnIn', async () => {
-    const inserted = await appendRecord(rec);
-    // Store Supabase-assigned id on the local record for later check-out
-    const localRec = { ...rec, id: inserted.id };
-    todayRecs.push(localRec);
+    await appendRecord(rec);
+    todayRecs.push(rec);
     renderRecords(); updateBtns();
     showToast('✅ Checked IN at ' + rec.checkIn, 'success');
   });
@@ -406,10 +409,9 @@ async function doCheckOut() {
   const rec = todayRecs.find(r => r.employeeId === emp.id && r.date === shiftDateStr() && !r.checkOut);
   if (!rec) { showToast('No active check-in found', 'error'); return; }
   const now = new Date();
-  const patch = { checkOut: timeStr(now), checkOutTimestamp: now.toISOString() };
+  rec.checkOut = timeStr(now); rec.checkOutTimestamp = now.toISOString();
   await withBtnLoad('btnOut', async () => {
-    await attUpdate(rec.id, patch);
-    rec.checkOut = patch.checkOut; rec.checkOutTimestamp = patch.checkOutTimestamp;
+    await saveAll();
     renderRecords(); updateBtns();
     showToast('🚪 Checked OUT at ' + rec.checkOut, 'success');
   });
@@ -438,18 +440,15 @@ async function appendRecord(rec) {
   // Enforce daily cap
   const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
   if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
-  // Insert single row — Supabase returns the row with its assigned `id`
-  const inserted = await attInsert(rec);
-  return inserted;
+  records.push(rec);
+  await attPatch(records);
 }
 
-// checkOut: update the open record for this employee today
-async function checkOutRecord(employeeId, date, patch) {
-  const records = await attGet().catch(() => []);
-  const openRec = records.find(r => r.employeeId === employeeId && r.date === date && r.checkIn && !r.checkOut);
-  if (!openRec) throw new Error('No active check-in found');
-  if (!openRec.id) throw new Error('Record has no id — cannot update');
-  return attUpdate(openRec.id, patch);
+async function saveAll() {
+  const allRecs = await attGet().catch(() => []);
+  const today   = shiftDateStr();
+  const others  = allRecs.filter(r => r.date !== today);
+  await attPatch([...others, ...todayRecs]);
 }
 
 // ── RENDER (employee view) ────────────────────────────────────────────────────
@@ -956,6 +955,7 @@ async function adminDoIn() {
   const loc = locations.find(l => l.id === adminLocId);
   const locLabel = loc ? loc.name : adminLocId;
   const now = new Date();
+  // Encode QR print timestamp into deviceId so it's visible in raw records
   const deviceIdVal = scannedPrintedAt
     ? 'ADMIN|QR Printed on ' + formatPrintedOn(new Date(scannedPrintedAt))
     : 'ADMIN';
@@ -969,15 +969,15 @@ async function adminDoIn() {
   document.getElementById('btnScanIn').disabled = true;
   document.getElementById('btnScanIn').innerHTML = '<span class="spinner"></span>';
   try {
-    // Validate against current records before inserting
     const records = await attGet().catch(() => []);
+    // Check there is no currently open record (not checked out) for this employee today
     const openRec = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && !r.checkOut);
     if (openRec) throw new Error(rec.name + ' is already checked in — check out first');
     const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
     if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
-    const inserted = await attAdminInsert(rec);
-    const localRec = { ...rec, id: inserted.id };
-    todayRecs.push(localRec);
+    records.push(rec);
+    await attPatch(records);
+    todayRecs.push(rec);
     renderRecords(); renderAdminRecords();
     resetAdminTimer();
     showToast('✅ ' + emp.name + ' checked IN', 'success');
@@ -1000,19 +1000,19 @@ async function adminDoOut() {
   try {
     const allRecs = await attGet().catch(() => []);
     const today   = shiftDateStr();
-    const openRec = allRecs.find(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
-    if (!openRec) throw new Error('No active check-in found for ' + emp.name);
-    if (!openRec.id) throw new Error('Record has no id — cannot update');
+    const idx     = allRecs.findIndex(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
+    if (idx < 0) throw new Error('No active check-in found for ' + emp.name);
     const now = new Date();
-    const patch = { checkOut: timeStr(now), checkOutTimestamp: now.toISOString() };
-    await attUpdate(openRec.id, patch);
+    allRecs[idx].checkOut = timeStr(now);
+    allRecs[idx].checkOutTimestamp = now.toISOString();
+    await attPatch(allRecs);
     // Sync local
     const local = todayRecs.find(r => r.employeeId === emp.id && r.date === today && !r.checkOut);
-    if (local) { local.checkOut = patch.checkOut; local.checkOutTimestamp = patch.checkOutTimestamp; }
+    if (local) { local.checkOut = allRecs[idx].checkOut; local.checkOutTimestamp = allRecs[idx].checkOutTimestamp; }
     renderRecords(); renderAdminRecords();
     resetAdminTimer();
     showToast('🚪 ' + emp.name + ' checked OUT', 'success');
-    document.getElementById('scanState').textContent = '✔️ Checked out at ' + patch.checkOut;
+    document.getElementById('scanState').textContent = '✔️ Checked out at ' + allRecs[idx].checkOut;
     document.getElementById('btnScanOut').disabled = true;
   } catch(e) {
     showToast('Error: ' + e.message, 'error');
@@ -1052,19 +1052,6 @@ function triggerDownload(filename, content) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-}
-
-function csvEscape(v) {
-  const s = v == null ? '' : String(v);
-  return (s.includes(',') || s.includes('"') || s.includes('\n'))
-    ? '"' + s.replace(/"/g, '""') + '"' : s;
-}
-const CSV_COLS = ['employeeId','name','designation','date','checkIn','checkInTimestamp',
-                  'checkOut','checkOutTimestamp','location','lat','lng','deviceId'];
-function csvStringify(records) {
-  return [CSV_COLS.join(','),
-    ...records.map(r => CSV_COLS.map(c => csvEscape(r[c])).join(','))
-  ].join('\n');
 }
 
 async function downloadRawCsv() {
@@ -1255,23 +1242,25 @@ function formatPrintedOn(d) {
 }
 
 // ── QR PRINT PAGE ─────────────────────────────────────────────────────────────
+// Set of selected employee IDs — persists across search/filter
+const _selectedEmpIds = new Set();
+
 async function openQrPrint() {
-  // Require admin PIN — if already in admin mode the PIN is already verified
-  if (!isAdmin && !verifiedPin) {
-    openPinOverlay('qr');
-    return;
-  }
+  if (!isAdmin && !verifiedPin) { openPinOverlay('qr'); return; }
   await _openQrPrintDirect();
 }
 
 async function _openQrPrintDirect() {
   await buildUuidLookup();
+  _selectedEmpIds.clear();
+  _updateSelectionUI();
   document.getElementById('qrPrintOverlay').classList.add('open');
   buildQrGrid('');
 }
 
 function closeQrPrint() {
   document.getElementById('qrPrintOverlay').classList.remove('open');
+  _selectedEmpIds.clear();
   revokeAdminSession();
 }
 
@@ -1291,10 +1280,15 @@ async function buildQrGrid(query) {
     return;
   }
   for (const emp of list) {
-    const init = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
-    const item = document.createElement('div');
-    item.className = 'emp-list-item';
+    const init     = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    const checked  = _selectedEmpIds.has(emp.id);
+    const item     = document.createElement('div');
+    item.className = 'emp-list-item' + (checked ? ' selected' : '');
+    item.dataset.empId = emp.id;
     item.innerHTML = `
+      <div class="emp-cb-wrap">
+        <input type="checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation()">
+      </div>
       <div class="emp-list-avatar">${init}</div>
       <div class="emp-list-info">
         <div class="emp-list-name">${esc(emp.name)}</div>
@@ -1302,9 +1296,138 @@ async function buildQrGrid(query) {
         <div class="emp-list-id">${esc(emp.id)}</div>
       </div>
       <div class="emp-list-arrow">›</div>`;
-    item.addEventListener('click', () => openIdCard(emp));
+
+    // Clicking anywhere on the row toggles selection;
+    // clicking the arrow opens the ID card modal
+    item.querySelector('.emp-list-arrow').addEventListener('click', e => {
+      e.stopPropagation();
+      openIdCard(emp);
+    });
+    item.addEventListener('click', () => _toggleEmpSelection(emp.id, item));
     grid.appendChild(item);
   }
+  _updateSelectionUI();
+}
+
+function _toggleEmpSelection(empId, itemEl) {
+  if (_selectedEmpIds.has(empId)) {
+    _selectedEmpIds.delete(empId);
+    itemEl.classList.remove('selected');
+    itemEl.querySelector('input[type=checkbox]').checked = false;
+  } else {
+    _selectedEmpIds.add(empId);
+    itemEl.classList.add('selected');
+    itemEl.querySelector('input[type=checkbox]').checked = true;
+  }
+  _updateSelectionUI();
+}
+
+function toggleSelectAll(checked) {
+  // Operate on currently visible rows only
+  const items = document.querySelectorAll('#qrGrid .emp-list-item');
+  items.forEach(item => {
+    const id = item.dataset.empId;
+    const cb = item.querySelector('input[type=checkbox]');
+    if (checked) {
+      _selectedEmpIds.add(id);
+      item.classList.add('selected');
+      if (cb) cb.checked = true;
+    } else {
+      _selectedEmpIds.delete(id);
+      item.classList.remove('selected');
+      if (cb) cb.checked = false;
+    }
+  });
+  _updateSelectionUI();
+}
+
+function _updateSelectionUI() {
+  const total    = employees.length;
+  const n        = _selectedEmpIds.size;
+  const badge    = document.getElementById('selCountBadge');
+  const printBtn = document.getElementById('btnPrintSelected');
+  const chkAll   = document.getElementById('chkSelectAll');
+
+  // Badge + print button
+  if (n > 0) {
+    badge.textContent  = n;
+    badge.style.display = '';
+    printBtn.textContent = `🖨️ Print Selected (${n})`;
+    printBtn.style.display = '';
+  } else {
+    badge.style.display    = 'none';
+    printBtn.style.display = 'none';
+  }
+
+  // Select-all checkbox state
+  if (!chkAll) return;
+  const visibleIds = [...document.querySelectorAll('#qrGrid .emp-list-item')]
+    .map(el => el.dataset.empId);
+  const visibleSelected = visibleIds.filter(id => _selectedEmpIds.has(id)).length;
+  if (visibleIds.length === 0 || visibleSelected === 0) {
+    chkAll.checked       = false;
+    chkAll.indeterminate = false;
+  } else if (visibleSelected === visibleIds.length) {
+    chkAll.checked       = true;
+    chkAll.indeterminate = false;
+  } else {
+    chkAll.checked       = false;
+    chkAll.indeterminate = true;
+  }
+}
+
+// Print only the selected employees, sorted A→Z, 4 per A4 page
+async function printSelectedIdCards() {
+  if (!_selectedEmpIds.size) return;
+
+  const btn = document.getElementById('btnPrintSelected');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Building…';
+
+  const printedOn = formatPrintedOn(new Date());
+  const sorted    = [...employees]
+    .filter(e => _selectedEmpIds.has(e.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  async function qrForEmp(emp) {
+    return new Promise(resolve => {
+      const el = document.createElement('div');
+      new QRCode(el, {
+        text:         `${_empUuidCache[emp.id] || emp.id}|${new Date().toISOString()}`,
+        width: 156, height: 156,
+        colorDark:    '#212529', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+      const canvas = el.querySelector('canvas');
+      resolve(canvas ? canvas.toDataURL('image/png') : '');
+    });
+  }
+
+  const cards = [];
+  for (const emp of sorted) {
+    const qrSrc = await qrForEmp(emp);
+    cards.push(buildCardHtml(emp, qrSrc, printedOn));
+  }
+
+  const empty = `<div class="id-card empty"></div>`;
+  const pages = [];
+  for (let i = 0; i < cards.length; i += 4) {
+    const group = cards.slice(i, i + 4);
+    while (group.length < 4) group.push(empty);
+    pages.push(`<div class="page">${group.join('')}</div>`);
+  }
+
+  const printHtml = `<!DOCTYPE html><html><head><title></title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>${PRINT_CSS}</style></head><body>
+  ${pages.join('\n')}
+  </body></html>`;
+
+  sendToPrinter(printHtml);
+
+  btn.disabled    = false;
+  btn.textContent = origText;
 }
 
 // ── ID CARD ───────────────────────────────────────────────────────────────────
