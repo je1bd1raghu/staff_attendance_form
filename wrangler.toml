@@ -1,15 +1,19 @@
-name       = "attendance-proxy"
-main       = "worker.js"
-account_id = "8805ed2fba9c404939a1cd475a197e9c"                    # fill in: `wrangler whoami` or Cloudflare dashboard → right sidebar
+name               = "attendance-proxy"
+main               = "worker.js"
+account_id         = "8805ed2fba9c404939a1cd475a197e9c"
 compatibility_date = "2024-01-01"
 
 # ── Secrets (never put real values here) ──────────────────────────────────────
-# Set each secret via CLI before or after deploying:
+# Set each secret via CLI before deploying:
 #
-#   wrangler secret put GITHUB_TOKEN
-#   wrangler secret put GIST_ID
-#   wrangler secret put CONFIG_GIST_ID
+#   wrangler secret put SUPABASE_URL
+#   wrangler secret put SUPABASE_ANON_KEY
 #   wrangler secret put ADMIN_PIN
+#
+# Get these from: Supabase dashboard → Settings → API
+#   SUPABASE_URL      → Project URL  (e.g. https://xxxx.supabase.co)
+#   SUPABASE_ANON_KEY → anon / public key
+#   ADMIN_PIN         → your chosen admin PIN
 #
 # Secrets are encrypted at rest in Cloudflare and injected into env at runtime.
 # Do NOT add a [vars] block for these — vars are plaintext in the dashboard.
