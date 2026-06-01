@@ -1,9 +1,13 @@
 // Cloudflare Worker — Attendance Proxy (Supabase backend)
 //
 // Secrets required:
-//   SUPABASE_URL        — e.g. https://xxxx.supabase.co
-//   SUPABASE_ANON_KEY   — anon/public key
-//   ADMIN_PIN           — admin PIN validated server-side
+//   SUPABASE_URL          — e.g. https://xxxx.supabase.co
+//   SUPABASE_SERVICE_KEY  — service_role key (bypasses RLS; server-side only)
+//   ADMIN_PIN             — admin PIN validated server-side
+//
+// Optional:
+//   SUPABASE_ANON_KEY     — fallback if SERVICE_KEY is unset (requires RLS
+//                           insert/update policies, not recommended)
 //
 // ── PROXY-ATTENDANCE PROTECTIONS (all enforced server-side) ──────────────────
 //
@@ -43,9 +47,13 @@ export default {
     const path = new URL(request.url).pathname.replace(/\/$/, '');
 
     // ── shared helpers ────────────────────────────────────────────────────────
+    // The worker is server-side and holds secrets safely, so it uses the
+    // service_role key which bypasses RLS. RLS still blocks direct client writes —
+    // every write must come through this worker, which validates PIN/ownership.
+    const supaKey = env.SUPABASE_SERVICE_KEY || env.SUPABASE_ANON_KEY;
     const supaHeaders = {
-      'apikey':        env.SUPABASE_ANON_KEY,
-      'Authorization': 'Bearer ' + env.SUPABASE_ANON_KEY,
+      'apikey':        supaKey,
+      'Authorization': 'Bearer ' + supaKey,
       'Content-Type':  'application/json',
       'Prefer':        'return=representation',
     };
