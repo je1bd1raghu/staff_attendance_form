@@ -1290,7 +1290,8 @@ function _toggleEmpSelection(empId, itemEl) {
 }
 
 function toggleSelectAll(checked) {
-  // Operate on currently visible rows only
+  // Guard: skip if this was triggered by our own _updateSelectionUI write
+  if (_updatingUI) return;
   document.querySelectorAll('#qrGrid .emp-list-item').forEach(item => {
     const id = item.dataset.empId;
     if (checked) _selectedEmpIds.add(id); else _selectedEmpIds.delete(id);
@@ -1300,6 +1301,8 @@ function toggleSelectAll(checked) {
   });
   _updateSelectionUI();
 }
+
+let _updatingUI = false;
 
 function _updateSelectionUI() {
   const n        = _selectedEmpIds.size;
@@ -1317,8 +1320,13 @@ function _updateSelectionUI() {
   if (!chkAll) return;
   const visible  = [...document.querySelectorAll('#qrGrid .emp-list-item')].map(el => el.dataset.empId);
   const selCount = visible.filter(id => _selectedEmpIds.has(id)).length;
+  // Set checkbox state without triggering onchange — writing .checked or
+  // .indeterminate fires the change event in some browsers, which calls
+  // toggleSelectAll(false) and clears the entire selection set.
+  _updatingUI = true;
   chkAll.checked       = visible.length > 0 && selCount === visible.length;
   chkAll.indeterminate = selCount > 0 && selCount < visible.length;
+  _updatingUI = false;
 }
 
 // ── ID CARD ───────────────────────────────────────────────────────────────────
