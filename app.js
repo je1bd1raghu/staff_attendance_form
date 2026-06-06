@@ -1042,7 +1042,8 @@ async function downloadRawCsv() {
   try {
     const records = await attGet();
     const content = csvStringify(records);
-    const ts = new Date().toISOString().slice(0,10);
+    const d = new Date();
+    const ts = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     triggerDownload('attendance_records_' + ts + '.csv', content);
     showToast('Downloaded ' + records.length + ' records', 'success');
   } catch(e) {
@@ -1167,8 +1168,9 @@ async function populateSummaryMonths() {
         const label = new Date(+y, +mo - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' });
         return `<option value="${m}">${label}</option>`;
       }).join('');
-    // Default to current month
-    const cur = new Date().toISOString().slice(0,7);
+    // Default to current month (local time)
+    const cd = new Date();
+    const cur = cd.getFullYear() + '-' + pad(cd.getMonth() + 1);
     if (months.includes(cur)) sel.value = cur;
   } catch { /* no records yet */ }
 }

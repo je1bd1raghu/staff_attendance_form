@@ -34,6 +34,10 @@
 const MAX_CHECKINS_PER_DAY = 2;
 const SHIFT_CUTOFF_HOUR    = 4;      // 04:00 — same as app.js
 const QR_MAX_AGE_MS        = 24 * 60 * 60 * 1000;  // QR cards valid for 24 h
+// Local timezone offset (minutes) for the site. The worker runs in UTC on
+// Cloudflare, but the shift date/cutoff and displayed times are local wall-clock.
+// IST = UTC+5:30 = 330 min. Adjust if the site moves timezone.
+const TZ_OFFSET_MIN        = 330;
 
 export default {
   async fetch(request, env) {
@@ -77,9 +81,15 @@ export default {
       return { ok: r.ok, status: r.status, data };
     }
 
-    // Current shift date string "YYYY-MM-DD" — computed server-side always
+    // A Date shifted by TZ_OFFSET_MIN so the getUTC* getters return local
+    // wall-clock values (the worker host is always UTC).
+    function localDate(d = new Date()) {
+      return new Date(d.getTime() + TZ_OFFSET_MIN * 60000);
+    }
+
+    // Current shift date string "YYYY-MM-DD" — computed server-side in local time
     function shiftDateStr() {
-      const d = new Date();
+      const d = localDate();
       if (d.getUTCHours() < SHIFT_CUTOFF_HOUR) d.setUTCDate(d.getUTCDate() - 1);
       const y = d.getUTCFullYear();
       const m = String(d.getUTCMonth() + 1).padStart(2, '0');
@@ -87,10 +97,11 @@ export default {
       return `${y}-${m}-${day}`;
     }
 
-    // Current UTC time "HH:MM:SS"
+    // Current local time "HH:MM:SS" (fallback when client doesn't send one)
     function nowTimeStr(d) {
+      const l = localDate(d);
       const p = n => String(n).padStart(2, '0');
-      return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+      return `${p(l.getUTCHours())}:${p(l.getUTCMinutes())}:${p(l.getUTCSeconds())}`;
     }
 
     // Load today's attendance rows for a given date from Supabase
