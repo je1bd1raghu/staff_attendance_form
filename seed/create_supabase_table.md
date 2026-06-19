@@ -31,20 +31,47 @@ create policy "anon read config"     on config     for select using (true);
 
 **Step 2 — Seed config**
 
+The config JSON has three top-level arrays — see `config.example.json` for a
+ready-to-edit template:
+
+- `establishments` — the sites/organisations staff belong to. Each: `id`, `name`,
+  and an optional `image` for the card's background photo. This can be a full
+  `https://…` URL or a relative path to a file shipped alongside `index.html`
+  (e.g. `images/head-office.jpg` — see `images/README.md`). Cards fall back to a
+  slate gradient when omitted. Staff first pick their establishment in the app,
+  which then unlocks the name picker filtered to that establishment.
+- `employees` — each links to an establishment via `establishmentId` and to its
+  allowed duty areas via `locationIds`.
+- `locations` — duty areas with `lat`, `lng`, and `tolerance` (metres).
+
+> If `establishments` is omitted or empty, the app falls back to the original
+> single-step flow (name picker shown directly, full roster).
+
+`seed_config.py` is an interactive two-way sync. Run it with no arguments and it
+prompts for the Supabase URL/key, then shows a menu to **push/pull config** and
+**push/pull attendance** to and from the server.
+
 ```python
 pip install requests --break-system-packages
 
-# Seed config only
-python seed_config.py \
-  --url https://xxxx.supabase.co \
-  --key YOUR_SERVICE_ROLE_KEY
+# Interactive menu (prompts for URL + service_role key, then the action):
+python seed_config.py
 
-# Seed config + migrate old attendance CSV
-python seed_config.py \
-  --url https://xxxx.supabase.co \
-  --key YOUR_SERVICE_ROLE_KEY \
-  --attendance attendance_records_2025-06-01.csv
+# Provide credentials up front, still shows the menu:
+python seed_config.py --url https://xxxx.supabase.co --key YOUR_SERVICE_ROLE_KEY
+
+# Run one action and exit (no menu):
+python seed_config.py --url ... --key ... --action push-config
+python seed_config.py --url ... --key ... --action pull-config     --config config.json
+python seed_config.py --url ... --key ... --action pull-attendance --attendance attendance.csv
+python seed_config.py --url ... --key ... --action push-attendance --attendance attendance.csv
 ```
+
+- **Pull** writes the server's data to local files (config → JSON, attendance →
+  CSV with `id`/`created_at`), asking before overwriting an existing file.
+- **Push** uploads local files: config upserts row id=1; attendance upserts on
+  `id` when the CSV carries ids (so re-pushing a pulled CSV updates in place)
+  and inserts fresh rows otherwise. Writes need the **service_role** key.
 
 > 
 

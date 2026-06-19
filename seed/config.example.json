@@ -1,0 +1,37 @@
+{
+  "establishments": [
+    { "id": "EST-HQ",    "name": "Head Office", "image": "images/head-office.jpg" },
+    { "id": "EST-WH",    "name": "Warehouse",   "image": "images/warehouse.jpg" },
+    { "id": "EST-CLINIC","name": "City Clinic", "image": "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=400&q=70" }
+  ],
+
+  "employees": [
+    {
+      "id": "EMP001",
+      "name": "Asha Rao",
+      "designation": "Manager",
+      "establishmentId": "EST-HQ",
+      "locationIds": ["LOC-HQ-GATE"]
+    },
+    {
+      "id": "EMP002",
+      "name": "Vikram Singh",
+      "designation": "Storekeeper",
+      "establishmentId": "EST-WH",
+      "locationIds": ["LOC-WH-DOCK"]
+    },
+    {
+      "id": "EMP003",
+      "name": "Dr. Meera Nair",
+      "designation": "Physician",
+      "establishmentId": "EST-CLINIC",
+      "locationIds": ["LOC-CLINIC-ENT"]
+    }
+  ],
+
+  "locations": [
+    { "id": "LOC-HQ-GATE",    "name": "HQ Main Gate",      "lat": 12.971599, "lng": 77.594566, "tolerance": 20 },
+    { "id": "LOC-WH-DOCK",    "name": "Warehouse Dock",    "lat": 13.035500, "lng": 77.597000, "tolerance": 30 },
+    { "id": "LOC-CLINIC-ENT", "name": "Clinic Entrance",   "lat": 12.927900, "lng": 77.627100, "tolerance": 15 }
+  ]
+}

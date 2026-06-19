@@ -2,9 +2,13 @@ const WORKER_URL  = 'https://attendance-proxy.je1-bd1-raghu.workers.dev/';
 // All Supabase credentials live in Cloudflare Worker secrets.
 // The client never holds a Supabase key or URL directly.
 
-let employees   = [];
-let locations   = [];
+let employees      = [];
+let locations      = [];
+let establishments = [];
+let selectedEstId  = null;   // currently chosen establishment (null = none / not required)
 let todayRecs   = [];
+let recSearch        = '';      // Today's Attendance filter: text query
+let recStatusFilter  = 'all';   // Today's Attendance filter: all | inside | left
 let currentPos  = null;
 let locVerified = false;
 let locName     = '';
@@ -145,9 +149,11 @@ async function workerGet(path) {
 async function fetchConfig() {
   try {
     const data = await workerGet('config');
-    employees  = data.employees || [];
-    locations  = data.locations  || [];
+    employees      = data.employees      || [];
+    locations      = data.locations      || [];
+    establishments = data.establishments || [];
     populateEmployees();
+    populateEstablishments();
     populateAdminLocs();
     await buildUuidLookup();   // pre-compute UUID→employeeId map for scanner
     return true;
@@ -193,7 +199,59 @@ function populateEmployees() {
   renderDropdown('');
 }
 
+// ── ESTABLISHMENTS ──────────────────────────────────────────────────────────────
+function populateEstablishments() {
+  const scroller  = document.getElementById('estScroller');
+  const estLabel  = document.getElementById('estLabel');
+  const nameBlock = document.getElementById('nameBlock');
+  if (!scroller) return;
+
+  // No establishments configured → keep the original single-step flow.
+  if (!establishments.length) {
+    scroller.style.display = 'none';
+    if (estLabel) estLabel.style.display = 'none';
+    selectedEstId = null;
+    unlockNameBlock();
+    return;
+  }
+
+  scroller.innerHTML = establishments.map((est, i) => {
+    const count = employees.filter(e => e.establishmentId === est.id).length;
+    // background image set inline; falls back to the CSS gradient when absent.
+    const bg = est.image ? ';background-image:url(' + cssUrl(est.image) + ')' : '';
+    return '<button class="est-card" type="button" data-eid="' + esc(est.id) + '" style="--i:' + i + bg + '"' +
+           ' onclick="selectEstablishment(\'' + esc(est.id) + '\')">' +
+             '<span class="est-name">' + esc(est.name) + '</span>' +
+             '<span class="est-count">' + count + (count === 1 ? ' member' : ' members') + '</span>' +
+             '<span class="est-check">✓</span>' +
+           '</button>';
+  }).join('');
+}
+
+function selectEstablishment(id) {
+  if (selectedEstId === id) return;        // already selected — no-op
+  selectedEstId = id;
+  document.querySelectorAll('.est-card').forEach(c =>
+    c.classList.toggle('active', c.dataset.eid === id));
+  clearEmployee();                         // reset any prior name choice
+  unlockNameBlock();
+  renderDropdown('');
+  // Activate the name field for the chosen establishment after the reveal settles.
+  const input = document.getElementById('empSearch');
+  setTimeout(() => { if (input && selectedEstId === id) input.focus(); }, 280);
+}
+
+function unlockNameBlock() {
+  const nameBlock = document.getElementById('nameBlock');
+  const input     = document.getElementById('empSearch');
+  if (nameBlock) nameBlock.classList.remove('locked');
+  if (input) input.disabled = false;
+}
+
 function esc(s) { return String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+// Wrap a URL for safe use inside an inline-style url(...): drop quotes, parens
+// and brackets so it can't break out of the attribute or the url() token.
+function cssUrl(s) { return "'" + String(s).replace(/["'()<>\\]/g, '') + "'"; }
 function hi(s, q) {
   if (!q) return esc(s);
   try {
@@ -202,12 +260,20 @@ function hi(s, q) {
   } catch(ex) { return esc(s); }
 }
 
+// Employees shown in the name picker — scoped to the chosen establishment
+// when establishments are configured, otherwise the full roster.
+function visibleEmployees() {
+  if (!establishments.length || !selectedEstId) return employees;
+  return employees.filter(e => e.establishmentId === selectedEstId);
+}
+
 function renderDropdown(query) {
   const dd = document.getElementById('comboDropdown');
   const q  = query.trim().toLowerCase();
+  const base = visibleEmployees();
   const list = q
-    ? employees.filter(e => e.name.toLowerCase().includes(q) || (e.designation||'').toLowerCase().includes(q))
-    : employees;
+    ? base.filter(e => e.name.toLowerCase().includes(q) || (e.designation||'').toLowerCase().includes(q))
+    : base;
   if (!list.length) { dd.innerHTML = '<div class="combo-empty">No employees found</div>'; return; }
   dd.innerHTML = list.map(e => {
     const desig = e.designation ? '<div class="combo-desig">'+hi(e.designation, q)+'</div>' : '';
@@ -435,11 +501,56 @@ async function appendRecord(rec) {
 }
 
 // ── RENDER (employee view) ────────────────────────────────────────────────────
+// A record is "inside" when checked in but not yet out; "left" once checked out.
+function isInside(r) { return !!r.checkIn && !r.checkOut; }
+
+function filteredRecords() {
+  const q = recSearch.trim().toLowerCase();
+  return todayRecs.filter(r => {
+    if (recStatusFilter === 'inside' && !isInside(r)) return false;
+    if (recStatusFilter === 'left'   &&  isInside(r)) return false;
+    if (!q) return true;
+    return (r.name||'').toLowerCase().includes(q)
+        || (r.designation||'').toLowerCase().includes(q)
+        || (r.location||'').toLowerCase().includes(q);
+  });
+}
+
 function renderRecords() {
-  const el = document.getElementById('recordsList');
+  const el  = document.getElementById('recordsList');
+  const bar = document.getElementById('recFilter');
+  if (bar) bar.style.display = todayRecs.length ? '' : 'none';
+  updateRecFilterCounts();
   if (!todayRecs.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>'; return; }
-  const sorted = [...todayRecs].sort((a,b) => (a.checkInTimestamp||'').localeCompare(b.checkInTimestamp||''));
+  const list = filteredRecords();
+  if (!list.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🔍</div>No matching records</div>'; return; }
+  const sorted = [...list].sort((a,b) => (a.checkInTimestamp||'').localeCompare(b.checkInTimestamp||''));
   el.innerHTML = sorted.map(r => recordHTML(r)).join('');
+}
+
+function updateRecFilterCounts() {
+  const set = (id, n) => { const e = document.getElementById(id); if (e) e.textContent = n; };
+  set('recN-all',    todayRecs.length);
+  set('recN-inside', todayRecs.filter(isInside).length);
+  set('recN-left',   todayRecs.filter(r => !isInside(r)).length);
+}
+
+function filterRecords() {
+  recSearch = document.getElementById('recSearch').value;
+  document.getElementById('recClear').style.display = recSearch ? '' : 'none';
+  renderRecords();
+}
+function clearRecSearch() {
+  recSearch = '';
+  document.getElementById('recSearch').value = '';
+  document.getElementById('recClear').style.display = 'none';
+  renderRecords();
+}
+function setRecFilter(status) {
+  recStatusFilter = status;
+  document.querySelectorAll('#recChips .rec-chip')
+    .forEach(c => c.classList.toggle('active', c.dataset.status === status));
+  renderRecords();
 }
 
 function renderAdminRecords() {
@@ -464,8 +575,90 @@ function recordHTML(r) {
     adminC = `<span class="time-chip chip-admin"${tooltip}>🛡️ Admin${printLabel ? ' · 🖨️' : ''}</span>`;
     if (printLabel) adminC += `<span class="time-chip chip-admin" style="font-size:9px;opacity:0.85">${printLabel.replace('QR Printed on ','')}</span>`;
   }
-  return `<div class="record-item"><div class="record-avatar">${init}</div><div class="record-info"><div class="record-name">${r.name}</div>${desig}<div class="record-loc">📍 ${r.location||'—'}</div></div><div class="record-times">${inC}${outC}${adminC}</div></div>`;
+  const clickable = r.id ? ` clickable" data-recid="${esc(r.id)}" role="button" tabindex="0" onclick="openGateModal('${esc(r.id)}')` : '';
+  return `<div class="record-item${clickable}"><div class="record-avatar">${init}</div><div class="record-info"><div class="record-name">${r.name}</div>${desig}<div class="record-loc">📍 ${r.location||'—'}</div></div><div class="record-times">${inC}${outC}${adminC}</div>${r.id ? '<div class="record-chevron">›</div>' : ''}</div>`;
 }
+
+// ── GATE CHECK MODAL ──────────────────────────────────────────────────────────
+// Tapped from a Today's Attendance card. Shows a guard, at a glance, whether the
+// person is on premises or has left, with exact check-in / check-out details.
+function openGateModal(id) {
+  if (!id) return;
+  const r = todayRecs.find(x => x.id === id);
+  if (!r) return;
+
+  const init = (r.name||'?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+  document.getElementById('gateAvatar').textContent = init;
+  document.getElementById('gateName').textContent   = r.name || '—';
+  const desigEl = document.getElementById('gateDesig');
+  desigEl.textContent   = r.designation || '';
+  desigEl.style.display = r.designation ? '' : 'none';
+  document.getElementById('gateMeta').innerHTML =
+    (r.employeeId ? '🪪 ' + esc(r.employeeId) + '&nbsp;&nbsp;·&nbsp;&nbsp;' : '') +
+    '📍 ' + esc(r.location || '—');
+
+  // Verdict
+  const inside = isInside(r);
+  document.getElementById('gateVerdict').className = 'gate-verdict ' + (inside ? 'inside' : 'exited');
+  document.getElementById('gateStamp').textContent = inside ? 'On Premises' : 'Exited';
+  document.getElementById('gateVerdictSub').textContent =
+    inside ? ('Checked in at ' + (r.checkIn || '—'))
+           : ('Checked out at ' + (r.checkOut || '—'));
+  document.getElementById('gateGuidance').textContent =
+    inside ? '⛔ Restricted — must check out before leaving'
+           : '✅ Checked out — clear to let out';
+
+  // Timeline (real sequence: in → out)
+  const rows = [];
+  rows.push(gateTlRow('in', 'Check In', r.checkIn || '—',
+                      fmtStampDate(r.checkInTimestamp), recordedBy(r)));
+  rows.push(r.checkOut
+    ? gateTlRow('out', 'Check Out', r.checkOut, fmtStampDate(r.checkOutTimestamp), '')
+    : gateTlRow('pending', 'Check Out', 'Not yet', 'Still on premises', ''));
+  document.getElementById('gateTimeline').innerHTML = rows.join('');
+
+  document.getElementById('gateOverlay').classList.add('open');
+}
+
+function gateTlRow(cls, label, time, date, meta) {
+  const sub = [date, meta].filter(Boolean).join(' · ');
+  return '<div class="gate-tl-row ' + cls + '">' +
+           '<div class="gate-tl-marker"></div>' +
+           '<div class="gate-tl-text">' +
+             '<div class="gate-tl-label">' + esc(label) + '</div>' +
+             '<div class="gate-tl-time">' + esc(time) + '</div>' +
+             (sub ? '<div class="gate-tl-meta">' + esc(sub) + '</div>' : '') +
+           '</div>' +
+         '</div>';
+}
+
+// How the check-in was recorded — admin QR scan vs. employee self check-in.
+function recordedBy(r) {
+  return (r.deviceId && r.deviceId.startsWith('ADMIN')) ? 'By admin' : 'Self check-in';
+}
+
+// ISO timestamp → "Mon, 20 Jun" (empty string if missing/invalid).
+function fmtStampDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const M    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + M[d.getMonth()];
+}
+
+function closeGateModal() { document.getElementById('gateOverlay').classList.remove('open'); }
+function handleGateOverlayClick(e) { if (e.target.id === 'gateOverlay') closeGateModal(); }
+
+// Keyboard: Esc closes the modal; Enter/Space activates a focused record card.
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeGateModal();
+  const a = document.activeElement;
+  if ((e.key === 'Enter' || e.key === ' ') && a && a.classList && a.classList.contains('record-item')) {
+    e.preventDefault();
+    a.click();
+  }
+});
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function getEmp()    { const id = document.getElementById('empSelect').value; return employees.find(e => e.id === id) || null; }

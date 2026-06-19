@@ -106,6 +106,35 @@
   </div>
 </div>
 
+<!-- GATE CHECK MODAL -->
+<div class="gate-overlay" id="gateOverlay" onclick="handleGateOverlayClick(event)">
+  <div class="gate-modal" id="gateModal" role="dialog" aria-modal="true" aria-labelledby="gateName">
+    <div class="gate-header">
+      <div class="gate-eyebrow">Gate Check</div>
+      <div class="gate-title">Attendance Pass</div>
+      <button class="gate-close" onclick="closeGateModal()" title="Close">✕</button>
+    </div>
+    <div class="gate-body">
+      <div class="gate-person">
+        <div class="gate-avatar" id="gateAvatar"></div>
+        <div class="gate-person-info">
+          <div class="gate-name"  id="gateName"></div>
+          <div class="gate-desig" id="gateDesig"></div>
+          <div class="gate-meta"  id="gateMeta"></div>
+        </div>
+      </div>
+
+      <div class="gate-verdict" id="gateVerdict">
+        <div class="gate-stamp"    id="gateStamp">—</div>
+        <div class="gate-verdict-sub" id="gateVerdictSub"></div>
+        <div class="gate-guidance" id="gateGuidance"></div>
+      </div>
+
+      <div class="gate-timeline" id="gateTimeline"></div>
+    </div>
+  </div>
+</div>
+
 <!-- HEADER -->
 <div class="header" id="mainHeader">
   <p id="headerDate">Loading…</p>
@@ -137,18 +166,25 @@
       </div>
     </div>
 
+    <!-- ESTABLISHMENT SELECTOR -->
+    <div class="field-label" id="estLabel">Select Establishment</div>
+    <div class="est-scroller" id="estScroller"></div>
+
     <!-- EMPLOYEE SEARCH COMBOBOX -->
-    <div class="field-label">Select Your Name</div>
-    <div class="combo-wrapper" id="comboWrapper">
-      <div class="combo-input-row">
-        <span class="combo-search-icon">&#128269;</span>
-        <input type="text" id="empSearch" class="combo-input" placeholder="Type to search your name…"
-               autocomplete="off" oninput="filterEmployees()" onfocus="openDropdown()" />
-        <button class="combo-clear" id="comboClear" onclick="clearEmployee()" style="display:none">&#x2715;</button>
+    <div class="name-block locked" id="nameBlock">
+      <div class="field-label">Select Your Name</div>
+      <div class="combo-wrapper" id="comboWrapper">
+        <div class="combo-input-row">
+          <span class="combo-search-icon">&#128269;</span>
+          <input type="text" id="empSearch" class="combo-input" placeholder="Type to search your name…"
+                 autocomplete="off" disabled oninput="filterEmployees()" onfocus="openDropdown()" />
+          <button class="combo-clear" id="comboClear" onclick="clearEmployee()" style="display:none">&#x2715;</button>
+        </div>
+        <div class="combo-dropdown" id="comboDropdown" style="display:none"></div>
       </div>
-      <div class="combo-dropdown" id="comboDropdown" style="display:none"></div>
+      <div class="name-lock-hint" id="nameLockHint">Pick your establishment above to continue</div>
+      <select id="empSelect" style="display:none"></select>
     </div>
-    <select id="empSelect" style="display:none"></select>
 
     <!-- LOCATION STATUS -->
     <div class="loc-status idle" id="locStatus">
@@ -173,6 +209,22 @@
   <!-- TODAY'S RECORDS -->
   <div class="card">
     <div class="section-title">Today's Attendance</div>
+
+    <!-- FILTER BAR -->
+    <div class="rec-filter" id="recFilter" style="display:none">
+      <div class="rec-search-row">
+        <span class="rec-search-icon">&#128269;</span>
+        <input type="text" id="recSearch" class="rec-search" placeholder="Search name, role or location…"
+               autocomplete="off" oninput="filterRecords()">
+        <button class="rec-clear" id="recClear" onclick="clearRecSearch()" style="display:none">&#x2715;</button>
+      </div>
+      <div class="rec-chips" id="recChips">
+        <button class="rec-chip active" data-status="all"    onclick="setRecFilter('all')">All <span class="rec-chip-n" id="recN-all">0</span></button>
+        <button class="rec-chip"        data-status="inside" onclick="setRecFilter('inside')">Inside <span class="rec-chip-n" id="recN-inside">0</span></button>
+        <button class="rec-chip"        data-status="left"   onclick="setRecFilter('left')">Left <span class="rec-chip-n" id="recN-left">0</span></button>
+      </div>
+    </div>
+
     <div id="recordsList">
       <div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>
     </div>
