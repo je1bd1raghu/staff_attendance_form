@@ -112,6 +112,16 @@ export default {
       return isOk && Array.isArray(data) ? data : [];
     }
 
+    // Load all OPEN (not checked out) records for a given deviceId — across ALL dates.
+    // This catches the case where an employee forgot to check out on a previous day;
+    // without this, the date-filtered getTodayRows would miss stale open sessions.
+    async function getDeviceOpenRows(deviceId) {
+      const { ok: isOk, data } = await supa(
+        `attendance?deviceId=eq.${deviceId}&checkOut=is.null&select=id,employeeId,deviceId,checkIn,checkOut,date`
+      );
+      return isOk && Array.isArray(data) ? data : [];
+    }
+
     // Load config (employees list) for employeeId validation
     async function getConfig() {
       const { ok: isOk, data } = await supa('config?id=eq.1&select=data');
@@ -160,16 +170,16 @@ export default {
       const date = shiftDateStr();
       const rows = await getTodayRows(date);
 
-      // 4. Cross-device proxy check: this device can't have a different employee open
-      const otherOpen = rows.find(r =>
-        r.deviceId === deviceId && r.checkIn && !r.checkOut && r.employeeId !== body.employeeId
-      );
+      // 4. Cross-device proxy check: this device can't have a different employee open.
+      //     Queries ALL open records for this deviceId (any date) so that stale open
+      //     sessions from previous days are not missed by the date filter.
+      const devRows = await getDeviceOpenRows(deviceId);
+      const otherOpen = devRows.find(r => r.employeeId !== body.employeeId);
       if (otherOpen) return err(`Another employee is already checked in from this device`, 409);
 
-      // 5. No double check-in for the same employee
-      const alreadyIn = rows.find(r =>
-        r.employeeId === body.employeeId && r.checkIn && !r.checkOut
-      );
+      // 5. No double check-in for the same employee — also checks across all dates
+      //    to prevent re-entry when the employee forgot to check out previously.
+      const alreadyIn = devRows.find(r => r.employeeId === body.employeeId);
       if (alreadyIn) return err(`${emp.name} is already checked in — check out first`, 409);
 
       // 6. Daily cap

@@ -139,6 +139,11 @@ select:focus { outline: none; border-color: var(--primary); }
 .name-lock-hint::before { content: '🔒'; font-size: 13px; }
 .name-block:not(.locked) .name-lock-hint { display: none; }
 
+@media (max-width: 480px) {
+  .est-card {
+    width: 130px; min-height: 116px; padding: 12px 14px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .est-card { animation: none; opacity: 1; transform: none; }
   .est-card:hover, .est-card:active { transform: none; }

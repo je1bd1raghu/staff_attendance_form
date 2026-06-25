@@ -405,6 +405,19 @@ function updateBtns() {
   const btnIn  = document.getElementById('btnIn');
   const btnOut = document.getElementById('btnOut');
   if (!locVerified || !id) { disableBtns(); return; }
+  // Cross-device check: block check-in when another employee is checked in from this device
+  if (deviceId) {
+    const otherOnDevice = todayRecs.find(r => r.deviceId === deviceId && r.checkIn && !r.checkOut && r.employeeId !== id);
+    if (otherOnDevice) {
+      btnIn.disabled  = true;
+      btnOut.disabled = true;
+      btnIn.title  = otherOnDevice.name + ' is currently checked in from this device';
+      btnOut.title = '';
+      return;
+    }
+  }
+  btnIn.title  = '';
+  btnOut.title = '';
   // All records for this employee today, sorted oldest-first
   const empRecs = todayRecs
     .filter(r => r.employeeId === id && r.date === shiftDateStr())
@@ -490,10 +503,10 @@ async function withBtnLoad(id, fn) {
 async function appendRecord(rec) {
   const records = await attGet().catch(() => []);
   if (rec.deviceId && rec.deviceId !== 'ADMIN') {
-    const openDevRec = records.find(r => r.date === rec.date && r.deviceId === rec.deviceId && r.checkIn && !r.checkOut && r.employeeId !== rec.employeeId);
+    const openDevRec = records.find(r => r.deviceId === rec.deviceId && r.checkIn && !r.checkOut && r.employeeId !== rec.employeeId);
     if (openDevRec) throw new Error('Another employee (' + openDevRec.name + ') is currently checked in from this device');
   }
-  const openRec = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && !r.checkOut);
+  const openRec = records.find(r => r.employeeId === rec.employeeId && r.checkIn && !r.checkOut);
   if (openRec) throw new Error(rec.name + ' is already checked in — please check out first');
   const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
   if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
