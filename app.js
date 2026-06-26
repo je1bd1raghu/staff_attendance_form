@@ -152,6 +152,7 @@ async function fetchConfig() {
     employees      = data.employees      || [];
     locations      = data.locations      || [];
     establishments = data.establishments || [];
+    serverShiftDate = data._shiftDate || null;
     populateEmployees();
     populateEstablishments();
     populateAdminLocs();
@@ -163,27 +164,10 @@ async function fetchConfig() {
 async function fetchTodayRecords() {
   try {
     const records = await attGet();
-    todayRecs     = records.filter(r => r.date === shiftDateStr() && !isBeforeShiftCutoff(r));
+    todayRecs     = records.filter(r => r.date === shiftDateStr());
     renderRecords();
     renderAdminRecords();
   } catch { todayRecs = []; renderRecords(); renderAdminRecords(); }
-}
-
-// Returns true if a record's check-in timestamp falls before today's shift cutoff.
-// Records between midnight and SHIFT_CUTOFF_HOUR on the current calendar day are
-// considered part of the *previous* shift and should not appear in today's list.
-function isBeforeShiftCutoff(rec) {
-  if (!rec.checkInTimestamp) return false;
-  const ts      = new Date(rec.checkInTimestamp);
-  const today   = new Date();
-  // Only filter records that are on today's *calendar* date and before cutoff hour
-  if (ts.getFullYear() === today.getFullYear() &&
-      ts.getMonth()    === today.getMonth()    &&
-      ts.getDate()     === today.getDate()     &&
-      ts.getHours()    < SHIFT_CUTOFF_HOUR) {
-    return true;
-  }
-  return false;
 }
 
 // ── EMPLOYEES ─────────────────────────────────────────────────────────────────
@@ -680,8 +664,12 @@ function getEmp()    { const id = document.getElementById('empSelect').value; re
 // A "workday" runs from ~sunrise to next sunrise. Any time between midnight and
 // SHIFT_CUTOFF_HOUR (04:00) is still considered part of the *previous* calendar
 // day's shift — so overnight check-outs are matched to their check-in date.
+// The server computes the shift date using IST (TZ_OFFSET_MIN=330) and returns it
+// in the config response as _shiftDate.  The client uses that authoritative value.
 const SHIFT_CUTOFF_HOUR = 4;   // 04:00 — adjust if your site has earlier starts
 function shiftDateStr() {
+  if (serverShiftDate) return serverShiftDate;
+  // Fallback: compute locally (matches server only when browser is in IST)
   const d = new Date();
   if (d.getHours() < SHIFT_CUTOFF_HOUR) d.setDate(d.getDate() - 1);
   return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
@@ -1422,7 +1410,8 @@ async function buildUuidLookup() {
     _uuidToEmpId[uuid] = emp.id;
   }));
 }
-let _uuidToEmpId = {};
+let _uuidToEmpId  = {};
+let serverShiftDate = null;
 
 function formatPrintedOn(d) {
   const DAYS  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];

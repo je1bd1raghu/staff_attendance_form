@@ -122,6 +122,16 @@ export default {
       return isOk && Array.isArray(data) ? data : [];
     }
 
+    // Load all OPEN records for a given employee — across ALL devices and dates.
+    // This prevents an employee from checking in from a second device while they
+    // have an open session on another device (e.g. forgot to check out).
+    async function getEmployeeOpenRows(employeeId) {
+      const { ok: isOk, data } = await supa(
+        `attendance?employeeId=eq.${employeeId}&checkOut=is.null&select=id,employeeId,deviceId,checkIn,checkOut,date`
+      );
+      return isOk && Array.isArray(data) ? data : [];
+    }
+
     // Load config (employees list) for employeeId validation
     async function getConfig() {
       const { ok: isOk, data } = await supa('config?id=eq.1&select=data');
@@ -140,6 +150,11 @@ export default {
     if (request.method === 'GET' && path.endsWith('/config')) {
       const cfg = await getConfig();
       if (!cfg) return err('Config not found', 404);
+      // Include server-computed shift date so the client doesn't need to
+      // re-derive it using browser-local time (which may differ from IST).
+      cfg._shiftDate        = shiftDateStr();
+      cfg._tzOffsetMin      = TZ_OFFSET_MIN;
+      cfg._shiftCutoffHour  = SHIFT_CUTOFF_HOUR;
       return ok(cfg);
     }
 
@@ -177,10 +192,11 @@ export default {
       const otherOpen = devRows.find(r => r.employeeId !== body.employeeId);
       if (otherOpen) return err(`Another employee is already checked in from this device`, 409);
 
-      // 5. No double check-in for the same employee — also checks across all dates
-      //    to prevent re-entry when the employee forgot to check out previously.
-      const alreadyIn = devRows.find(r => r.employeeId === body.employeeId);
-      if (alreadyIn) return err(`${emp.name} is already checked in — check out first`, 409);
+      // 5. No double check-in for the same employee — across ALL devices and all dates.
+      //    This prevents re-entry when the employee has an open session on another device
+      //    (or forgot to check out on a previous day).
+      const empRows = await getEmployeeOpenRows(body.employeeId);
+      if (empRows.length) return err(`${emp.name} is already checked in — check out first`, 409);
 
       // 6. Daily cap
       const completed = rows.filter(r =>
@@ -271,8 +287,8 @@ export default {
       const rows = await getTodayRows(date);
 
       // Same business-rule checks as employee check-in
-      const alreadyIn = rows.find(r => r.employeeId === emp.id && r.checkIn && !r.checkOut);
-      if (alreadyIn) return err(`${emp.name} is already checked in`, 409);
+      const empRows = await getEmployeeOpenRows(emp.id);
+      if (empRows.length) return err(`${emp.name} is already checked in`, 409);
 
       const completed = rows.filter(r => r.employeeId === emp.id && r.checkIn && r.checkOut).length;
       if (completed >= MAX_CHECKINS_PER_DAY)
