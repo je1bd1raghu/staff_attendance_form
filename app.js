@@ -158,7 +158,7 @@ async function fetchConfig() {
     populateAdminLocs();
     await buildUuidLookup();   // pre-compute UUID→employeeId map for scanner
     return true;
-  } catch(e) { showToast('Config error: ' + e.message, 'error'); return false; }
+  } catch(e) { showToast('Failed to load configuration — check your network and refresh the page', 'error'); return false; }
 }
 
 async function fetchTodayRecords() {
@@ -440,7 +440,7 @@ function disableBtns() {
 
 // ── ACTIONS (employee self) ───────────────────────────────────────────────────
 async function doCheckIn() {
-  if (!locVerified) { showToast('Location not verified', 'error'); return; }
+  if (!locVerified) { showToast('Location not verified — stay within the duty area until the status turns green', 'error'); return; }
   const emp = getEmp(); if (!emp) return;
   const now = new Date();
   // date and deviceId are re-set server-side; we send them as hints only
@@ -452,15 +452,15 @@ async function doCheckIn() {
     const inserted = await appendRecord(rec);
     todayRecs.push({ ...rec, id: inserted.id });  // store server-assigned UUID
     renderRecords(); updateBtns();
-    showToast('✅ Checked IN at ' + rec.checkIn, 'success');
+    showToast('✅ Checked in at ' + rec.checkIn, 'success');
   });
 }
 async function doCheckOut() {
-  if (!locVerified) { showToast('Location not verified', 'error'); return; }
+  if (!locVerified) { showToast('Location not verified — stay within the duty area until the status turns green', 'error'); return; }
   const emp = getEmp(); if (!emp) return;
   const rec = todayRecs.find(r => r.employeeId === emp.id && r.date === shiftDateStr() && !r.checkOut);
-  if (!rec) { showToast('No active check-in found', 'error'); return; }
-  if (!rec.id) { showToast('Record id missing — please refresh the page', 'error'); return; }
+  if (!rec) { showToast('No active check-in found — check in first before checking out', 'error'); return; }
+  if (!rec.id) { showToast('Record ID is missing from the server response — refresh the page and try again', 'error'); return; }
   await withBtnLoad('btnOut', async () => {
     const now     = new Date();
     const coTime  = timeStr(now);
@@ -468,7 +468,7 @@ async function doCheckOut() {
     rec.checkOut = updated.checkOut || coTime;
     rec.checkOutTimestamp = updated.checkOutTimestamp;
     renderRecords(); updateBtns();
-    showToast('🚪 Checked OUT at ' + rec.checkOut, 'success');
+    showToast('🚪 Checked out at ' + rec.checkOut, 'success');
   });
 }
 
@@ -477,7 +477,7 @@ async function withBtnLoad(id, fn) {
   const orig = btn.innerHTML;
   btn.innerHTML = '<span class="spinner"></span>';
   btn.disabled = true;
-  try { await fn(); } catch(e) { showToast('Error: ' + e.message, 'error'); }
+  try { await fn(); } catch(e) { showToast(e.message, 'error'); }
   btn.innerHTML = orig;
 }
 
@@ -491,7 +491,13 @@ async function appendRecord(rec) {
     if (openDevRec) throw new Error('Another employee (' + openDevRec.name + ') is currently checked in from this device');
   }
   const openRec = records.find(r => r.employeeId === rec.employeeId && r.checkIn && !r.checkOut);
-  if (openRec) throw new Error(rec.name + ' is already checked in — please check out first');
+  if (openRec) {
+    if (openRec.date === rec.date) {
+      throw new Error(rec.name + ' is already checked in today — check out first');
+    } else {
+      throw new Error(rec.name + ' has an incomplete day from ' + openRec.date + ' (missing check-out) — contact your admin to correct the record');
+    }
+  }
   const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
   if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
   return attInsert(rec);   // returns inserted row with server-assigned `id`
@@ -683,7 +689,7 @@ function showToast(msg, type='') {
   void el.offsetWidth;
   el.classList.add('show');
   clearTimeout(toastTmr);
-  toastTmr = setTimeout(() => el.classList.remove('show'), 3400);
+  toastTmr = setTimeout(() => el.classList.remove('show'), 5000);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -788,7 +794,7 @@ function submitPin() {
     } else {
       renderPinDots(true);
       setTimeout(() => { pinBuffer = ''; renderPinDots(); document.getElementById('pinSubmit').disabled = true; }, 700);
-      showToast(data.error || 'Incorrect PIN', 'error');
+      showToast(data.error || 'Incorrect PIN — the admin PIN is case-sensitive, please try again', 'error');
     }
   })
   .catch(() => {
@@ -796,7 +802,7 @@ function submitPin() {
     document.getElementById('pinSubmit').textContent = '✓ Confirm PIN';
     renderPinDots(true);
     setTimeout(() => { pinBuffer = ''; renderPinDots(); document.getElementById('pinSubmit').disabled = true; }, 700);
-    showToast('Network error — could not verify PIN', 'error');
+    showToast('Network error — could not verify PIN, please check your connection and try again', 'error');
   });
 }
 
@@ -807,7 +813,7 @@ let   _adminTimer      = null;
 function startAdminTimer() {
   clearTimeout(_adminTimer);
   _adminTimer = setTimeout(() => {
-    showToast('⏱️ Admin session expired — please re-authenticate', 'warning');
+    showToast('⏱️ Admin session has expired — please re-enter your PIN', 'warning');
     revokeAdminSession();
   }, ADMIN_SESSION_MS);
 }
@@ -1125,8 +1131,8 @@ function onQrDetected(data) {
 // ── ADMIN CHECK-IN / CHECK-OUT ────────────────────────────────────────────────
 async function adminDoIn() {
   const emp = employees.find(e => e.id === scannedEmpId);
-  if (!emp) { showToast('No employee scanned', 'error'); return; }
-  if (!adminLocId) { showToast('Select a duty location first', 'warning'); return; }
+  if (!emp) { showToast('No employee scanned — scan a valid QR code to proceed', 'error'); return; }
+  if (!adminLocId) { showToast('Select a duty location before scanning an employee', 'warning'); return; }
   if (!adminLocVerified) { showToast('Your location is not verified for this site — move closer', 'error'); return; }
   const loc = locations.find(l => l.id === adminLocId);
   const locLabel = loc ? loc.name : adminLocId;
@@ -1155,12 +1161,12 @@ async function adminDoIn() {
     todayRecs.push({ ...rec, id: inserted.id });
     renderRecords(); renderAdminRecords();
     resetAdminTimer();
-    showToast('✅ ' + emp.name + ' checked IN', 'success');
+    showToast('✅ ' + emp.name + ' checked in successfully', 'success');
     document.getElementById('scanState').textContent = '✅ Checked in at ' + rec.checkIn;
     document.getElementById('btnScanIn').disabled  = true;
     document.getElementById('btnScanOut').disabled = false;
   } catch(e) {
-    showToast('Error: ' + e.message, 'error');
+    showToast(e.message, 'error');
     document.getElementById('btnScanIn').disabled = false;
   }
   document.getElementById('btnScanIn').innerHTML = '✅ Check IN';
@@ -1168,7 +1174,7 @@ async function adminDoIn() {
 
 async function adminDoOut() {
   const emp = employees.find(e => e.id === scannedEmpId);
-  if (!emp) { showToast('No employee scanned', 'error'); return; }
+  if (!emp) { showToast('No employee scanned — scan a valid QR code to proceed', 'error'); return; }
   if (!adminLocVerified) { showToast('Your location is not verified for this site — move closer', 'error'); return; }
   document.getElementById('btnScanOut').disabled = true;
   document.getElementById('btnScanOut').innerHTML = '<span class="spinner"></span>';
@@ -1186,11 +1192,11 @@ async function adminDoOut() {
     if (local) { local.checkOut = displayTime; local.checkOutTimestamp = updated.checkOutTimestamp; }
     renderRecords(); renderAdminRecords();
     resetAdminTimer();
-    showToast('🚪 ' + emp.name + ' checked OUT', 'success');
+    showToast('🚪 ' + emp.name + ' checked out successfully', 'success');
     document.getElementById('scanState').textContent = '✔️ Checked out at ' + displayTime;
     document.getElementById('btnScanOut').disabled = true;
   } catch(e) {
-    showToast('Error: ' + e.message, 'error');
+    showToast(e.message, 'error');
     document.getElementById('btnScanOut').disabled = false;
   }
   document.getElementById('btnScanOut').innerHTML = '🚪 Check OUT';
@@ -1239,9 +1245,9 @@ async function downloadRawCsv() {
     const d = new Date();
     const ts = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     triggerDownload('attendance_records_' + ts + '.csv', content);
-    showToast('Downloaded ' + records.length + ' records', 'success');
+    showToast('Downloaded ' + records.length + ' attendance records successfully', 'success');
   } catch(e) {
-    showToast('Download failed: ' + e.message, 'error');
+    showToast('Failed to download attendance records: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
     btn.style.opacity = '';
@@ -1340,9 +1346,9 @@ async function downloadSummaryCsv() {
     const content = lines.join('\r\n');
     const suffix  = filter ? '_' + filter : '_all';
     triggerDownload('attendance_summary' + suffix + '.csv', content);
-    showToast('Summary: ' + rows.length + ' employee-month rows', 'success');
+    showToast('Generated summary with ' + rows.length + ' employee-month rows', 'success');
   } catch(e) {
-    showToast('Download failed: ' + e.message, 'error');
+    showToast('Failed to generate summary: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
     btn.style.opacity = '';

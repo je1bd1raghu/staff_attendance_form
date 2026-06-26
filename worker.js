@@ -196,7 +196,14 @@ export default {
       //    This prevents re-entry when the employee has an open session on another device
       //    (or forgot to check out on a previous day).
       const empRows = await getEmployeeOpenRows(body.employeeId);
-      if (empRows.length) return err(`${emp.name} is already checked in — check out first`, 409);
+      if (empRows.length) {
+        const openRec    = empRows[0];
+        const isToday    = openRec.date === date;
+        const msg        = isToday
+          ? `${emp.name} is already checked in today — check out first`
+          : `${emp.name} has an incomplete day from ${openRec.date} (missing check-out) — contact your admin to correct the record`;
+        return err(msg, 409);
+      }
 
       // 6. Daily cap
       const completed = rows.filter(r =>
