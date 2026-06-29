@@ -464,11 +464,19 @@ async function doCheckOut() {
   await withBtnLoad('btnOut', async () => {
     const now     = new Date();
     const coTime  = timeStr(now);
-    const updated = await attUpdate(rec.id, { checkOut: coTime });
-    rec.checkOut = updated.checkOut || coTime;
-    rec.checkOutTimestamp = updated.checkOutTimestamp;
-    renderRecords(); updateBtns();
-    showToast('🚪 Checked out at ' + rec.checkOut, 'success');
+    try {
+      const updated = await attUpdate(rec.id, { checkOut: coTime });
+      rec.checkOut = updated.checkOut || coTime;
+      rec.checkOutTimestamp = updated.checkOutTimestamp;
+      renderRecords(); updateBtns();
+      showToast('🚪 Checked out at ' + rec.checkOut, 'success');
+    } catch(e) {
+      if (e.message === 'You cannot check out another person') {
+        showToast('Your device fingerprint has changed since check-in — this can happen after a browser update. Please contact your admin to check out.', 'warning');
+      } else {
+        throw e;
+      }
+    }
   });
 }
 
