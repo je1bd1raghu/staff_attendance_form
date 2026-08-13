@@ -14,6 +14,7 @@ let locVerified = false;
 let locName     = '';
 let watchId     = null;
 let deviceId    = null;
+let deviceToken = null;  // durable device pass — survives fingerprint drift
 let verifiedPin = null;  // PIN confirmed by server; held in memory for the session
 
 // ── ADMIN STATE ───────────────────────────────────────────────────────────────
@@ -43,10 +44,128 @@ async function getDeviceId() {
   } catch(e) { deviceId = null; }
 }
 
+// ── DURABLE DEVICE PASS ──────────────────────────────────────────────────────
+// A random UUID that identifies "this browser" for check-out. Unlike the
+// fingerprint, it survives browser updates, so a fingerprint shift can never
+// lock a worker out. Persisted in localStorage with an IndexedDB mirror so a
+// localStorage eviction doesn't reset it either.
+const DEVICE_TOKEN_KEY = 'att_deviceToken';
+
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    try {
+      const rq = indexedDB.open('att_device', 1);
+      rq.onsuccess  = () => resolve(rq.result);
+      rq.onerror    = () => reject(rq.error);
+      rq.onupgradeneeded = () => {
+        if (!rq.result.objectStoreNames.contains('kv')) rq.result.createObjectStore('kv');
+      };
+    } catch(e) { reject(e); }
+  });
+}
+function idbGet(key) {
+  return idbOpen().then(db => new Promise((resolve, reject) => {
+    try {
+      const rq = db.transaction('kv', 'readonly').objectStore('kv').get(key);
+      rq.onsuccess = () => resolve(rq.result);
+      rq.onerror   = () => reject(rq.error);
+    } catch(e) { reject(e); }
+  }));
+}
+function idbSet(key, val) {
+  return idbOpen().then(db => new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put(val, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => reject(tx.error);
+    } catch(e) { reject(e); }
+  }));
+}
+function genToken() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const r = (n) => Math.floor(Math.random() * n).toString(16).padStart(8, '0');
+  return r(0x100000000) + '-' + r(0x10000) + '-' + '4' + Math.floor(Math.random()*0x1000).toString(16).padStart(3,'0')
+       + '-' + (0x8000 | Math.floor(Math.random()*0x3fff)).toString(16) + '-' + r(0x100000000) + r(0x10000);
+}
+async function getDeviceToken() {
+  if (deviceToken) return deviceToken;
+  let t = null;
+  try { t = localStorage.getItem(DEVICE_TOKEN_KEY); } catch {}
+  if (!t) { try { t = await idbGet('deviceToken'); } catch {} }
+  if (!t) {
+    t = genToken();
+    try { localStorage.setItem(DEVICE_TOKEN_KEY, t); } catch {}
+    try { idbSet('deviceToken', t); } catch {}
+  } else {
+    try { localStorage.setItem(DEVICE_TOKEN_KEY, t); } catch {}
+  }
+  deviceToken = t;
+  return t;
+}
+
+// ── CHROME GATE ──────────────────────────────────────────────────────────────
+// Staff check-in/out is verified in-browser, so we ask for Google Chrome on
+// desktop + Android. iOS is always allowed — every iOS browser shares the
+// WebKit engine, so there is no real "Chrome" to enforce there.
+function browserCheck() {
+  const ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/.test(ua)) return 'ok';
+  const brands = (navigator.userAgentData && navigator.userAgentData.brands)
+    ? navigator.userAgentData.brands.map(b => b.brand)
+    : [];
+  if (brands.length) {
+    const s = brands.join(' ');
+    if (/Microsoft Edge|Opera|Samsung Internet|Vivaldi|Brave|Edg|OPR/i.test(s)) return 'block';
+    if (/Google Chrome/.test(s)) return 'ok';
+    return 'block';
+  }
+  if (/Chrome\/|Chromium\//.test(ua) && !/Edg\/|OPR\/|SamsungBrowser|Vivaldi|CriOS/.test(ua)) return 'ok';
+  return 'block';
+}
+
+function showBrowserGate() {
+  const gate = document.getElementById('browserGate');
+  if (!gate) return;
+  document.getElementById('loadingScreen').classList.add('hide');
+  gate.style.display = 'flex';
+  document.title = 'Open this page in Chrome';
+  const url = location.href;
+  const isAndroid = /Android/i.test(navigator.userAgent || '');
+  const link = document.getElementById('openChromeBtn');
+  if (isAndroid) {
+    // One-tap: hand the current page over to Chrome on Android.
+    const hostPath  = url.replace(/^https?:\/\//i, '');
+    const scheme    = /^http:/.test(url) ? 'http' : 'https';
+    const fb        = encodeURIComponent(url);
+    link.href = 'intent://' + hostPath + '#Intent;scheme=' + scheme +
+                ';package=com.android.chrome;S.browser_fallback_url=' + fb + ';end';
+  } else {
+    link.textContent = 'Download Google Chrome';
+    link.href = 'https://www.google.com/chrome/';
+    const note = document.getElementById('gateDesktopNote');
+    if (note) note.style.display = '';
+    const phoneNote = document.getElementById('gatePhoneNote');
+    if (phoneNote) phoneNote.style.display = 'none';
+  }
+  const copyBtn = document.getElementById('copyLinkBtn');
+  if (copyBtn) copyBtn.addEventListener('click', () => {
+    (navigator.clipboard ? navigator.clipboard.writeText(url)
+      : Promise.reject(new Error('no clipboard')))
+      .then(() => showToast('Link copied — paste it into Chrome', 'success'))
+      .catch(() => showToast('Long-press the address bar and copy the link', 'warning'));
+  });
+  gate.tabIndex = -1;
+  gate.focus();
+}
+
 async function initApp() {
   setProgress(10);
+  setLoadText('Checking your browser…');
+  if (browserCheck() === 'block') { showBrowserGate(); return; }
+  setProgress(25);
   setLoadText('Loading employees…');
-  await getDeviceId();
+  await Promise.all([getDeviceId(), getDeviceToken()]);
   setProgress(40);
   const ok = await fetchConfig();
   if (!ok) { hideLoading(); return; }
@@ -127,12 +246,12 @@ function attInsert(rec) {
 }
 
 // Update a record by its Supabase UUID (check-out).
-// Employee checkout sends deviceId for ownership verification;
+// Employee checkout sends deviceToken + deviceId for ownership verification;
 // admin checkout routes to /attendance/admin/:id with the PIN.
 function attUpdate(id, patch) {
   return isAdmin && verifiedPin
     ? _sendJson(WORKER_URL + 'attendance/admin/' + id, 'PATCH', { ...patch, adminPin: verifiedPin })
-    : _sendJson(WORKER_URL + 'attendance/' + id, 'PATCH', { ...patch, deviceId });
+    : _sendJson(WORKER_URL + 'attendance/' + id, 'PATCH', { ...patch, deviceToken, deviceId });
 }
 
 // Admin check-in via QR scan — worker validates PIN, QR age, and all business rules
@@ -390,8 +509,9 @@ function updateBtns() {
   const btnOut = document.getElementById('btnOut');
   if (!locVerified || !id) { disableBtns(); return; }
   // Cross-device check: block check-in when another employee is checked in from this device
-  if (deviceId) {
-    const otherOnDevice = todayRecs.find(r => r.deviceId === deviceId && r.checkIn && !r.checkOut && r.employeeId !== id);
+  const sameIdentity = r => (r.deviceId && r.deviceId === deviceId) || (r.deviceToken && r.deviceToken === deviceToken);
+  if (deviceId || deviceToken) {
+    const otherOnDevice = todayRecs.find(r => sameIdentity(r) && r.checkIn && !r.checkOut && r.employeeId !== id);
     if (otherOnDevice) {
       btnIn.disabled  = true;
       btnOut.disabled = true;
@@ -447,7 +567,7 @@ async function doCheckIn() {
   const rec = { employeeId: emp.id, name: emp.name, designation: emp.designation || '',
     date: shiftDateStr(), checkIn: timeStr(now), checkInTimestamp: now.toISOString(),
     checkOut: null, checkOutTimestamp: null,
-    location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceId };
+    location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceId, deviceToken };
   await withBtnLoad('btnIn', async () => {
     const inserted = await appendRecord(rec);
     todayRecs.push({ ...rec, id: inserted.id });  // store server-assigned UUID
@@ -472,7 +592,7 @@ async function doCheckOut() {
       showToast('🚪 Checked out at ' + rec.checkOut, 'success');
     } catch(e) {
       if (e.message === 'You cannot check out another person') {
-        showToast('Your device fingerprint has changed since check-in — this can happen after a browser update. Please contact your admin to check out.', 'warning');
+        showToast('Check-out is locked to the browser that checked in. If you switched browsers or cleared site data, contact your admin to check out.', 'warning');
       } else {
         throw e;
       }
@@ -494,8 +614,10 @@ async function withBtnLoad(id, fn) {
 // in the worker and cannot be bypassed by a malicious or modified client.
 async function appendRecord(rec) {
   const records = await attGet().catch(() => []);
-  if (rec.deviceId && rec.deviceId !== 'ADMIN') {
-    const openDevRec = records.find(r => r.deviceId === rec.deviceId && r.checkIn && !r.checkOut && r.employeeId !== rec.employeeId);
+  if (rec.deviceId || rec.deviceToken) {
+    const openDevRec = records.find(r =>
+      ((r.deviceId === rec.deviceId) || (r.deviceToken && r.deviceToken === rec.deviceToken)) &&
+      r.checkIn && !r.checkOut && r.employeeId !== rec.employeeId);
     if (openDevRec) throw new Error('Another employee (' + openDevRec.name + ') is currently checked in from this device');
   }
   const openRec = records.find(r => r.employeeId === rec.employeeId && r.checkIn && !r.checkOut);

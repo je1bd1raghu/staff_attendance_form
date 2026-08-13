@@ -29,6 +29,17 @@ create policy "anon read attendance" on attendance for select using (true);
 create policy "anon read config"     on config     for select using (true);
 ```
 
+**Step 1b — Add the durable device pass column (already-applied fresh installs skip this):**
+
+```sql
+alter table attendance add column if not exists "deviceToken" text;
+update attendance set "deviceToken" = "deviceId" where "deviceToken" is null;
+```
+
+`deviceToken` is a random UUID the app stores in the browser (localStorage +
+IndexedDB). Check-out succeeds when the token **or** the fingerprint matches, so
+a browser update that shifts the fingerprint no longer locks a worker out.
+
 **Step 2 — Seed config**
 
 The config JSON has three top-level arrays — see `config.example.json` for a

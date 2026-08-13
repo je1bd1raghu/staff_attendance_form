@@ -7,15 +7,43 @@
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <!-- LOADING SCREEN -->
 <div class="loading-screen" id="loadingScreen">
-  <div class="l-icon">📋</div>
+  <div class="l-eyebrow">Duty Gate</div>
+  <div class="l-icon">🚪</div>
   <div class="l-text" id="loadingText">Starting up…</div>
   <div class="bar-track"><div class="bar-fill" id="loadingBar"></div></div>
+</div>
+
+<!-- BROWSER GATE -->
+<div class="gate-screen" id="browserGate" style="display:none" role="alertdialog" aria-labelledby="gateHeadline">
+  <div class="gate-card">
+    <div class="gate-arch">
+      <div class="gate-lights">
+        <span class="gl" style="--c:#E05D44;--i:0"></span>
+        <span class="gl" style="--c:#F4BF4F;--i:1"></span>
+        <span class="gl" style="--c:#3AA757;--i:2"></span>
+        <span class="gl" style="--c:#4C8BF5;--i:3"></span>
+      </div>
+      <span class="gate-stamp">Chrome<br>Required</span>
+    </div>
+    <div class="gate-card-body">
+      <p class="gate-kicker">Duty Gate · Device Pass</p>
+      <h1 class="gate-headline" id="gateHeadline">Open this page in Chrome</h1>
+      <p class="gate-sub">Check-in and check-out are verified in your browser. Opening the same page in Chrome keeps your device pass stable for the whole shift.</p>
+      <div class="gate-actions">
+        <a class="btn-chrome" id="openChromeBtn" href="#" rel="noopener">Open in Chrome</a>
+        <button class="btn-copy" id="copyLinkBtn" type="button">Copy link</button>
+      </div>
+      <p class="gate-help" id="gatePhoneNote">On this phone? Tap “Open in Chrome” — the page reopens in Chrome and picks up where you left off.</p>
+      <p class="gate-help" id="gateDesktopNote" style="display:none">On this computer? Install Chrome, then reopen this page in it.</p>
+    </div>
+  </div>
 </div>
 
 <!-- TOAST -->

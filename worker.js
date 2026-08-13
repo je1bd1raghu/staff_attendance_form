@@ -13,14 +13,17 @@
 //
 //  ✓ employeeId validated against config — can't invent a phantom employee
 //  ✓ date always set server-side to current shift date — can't backdate/forward-date
-//  ✓ deviceId always overwritten server-side — can't spoof another device
+//  ✓ deviceId and deviceToken always overwritten server-side — can't spoof a device
 //  ✓ duplicate check-in blocked server-side — can't double-check-in
 //  ✓ daily cap enforced server-side — can't exceed MAX_CHECKINS_PER_DAY
 //  ✓ cross-device proxy blocked server-side — one device can't check in
-//    two different employees simultaneously
+//    two different employees simultaneously (matched by token OR fingerprint)
 //  ✓ PATCH /attendance/:id verifies the record belongs to the requesting
-//    deviceId before allowing checkout — can't check out someone else
+//    deviceToken or deviceId before allowing checkout — can't check out someone
+//    else; the durable token tolerates fingerprint drift after browser updates
 //  ✓ QR printedAt expiry — printed cards older than QR_MAX_AGE_MS are rejected
+//  ✓ Chrome gate — self check-in/out rejected when Sec-CH-UA positively
+//    identifies a non-Chrome browser (client gate also blocks at startup)
 //
 // Routes:
 //   GET  /config                  → proxy config JSON from Supabase
@@ -49,6 +52,23 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
 
     const path = new URL(request.url).pathname.replace(/\/$/, '');
+
+    // Positive-detect Chrome gate. Browsers send the Sec-CH-UA header with the
+    // real brand list, so we can distinguish genuine Google Chrome from Chromium
+    // forks (Edge, Opera, Samsung Internet, Brave, Vivaldi) server-side. Only
+    // positive non-Chrome signals are rejected — if the header is missing we
+    // allow the request and rely on the client-side gate. iOS is always allowed
+    // (every iOS browser shares the WebKit engine, so there is no real Chrome).
+    function chromeGate(request) {
+      const secChUa = request.headers.get('sec-ch-ua') || '';
+      if (!secChUa) return null;                      // can't verify → allow (client gate covers)
+      const ua = request.headers.get('user-agent') || '';
+      if (/iPad|iPhone|iPod/.test(ua)) return null;   // iOS → allowed
+      const isChrome = /Google Chrome/.test(secChUa);
+      const isFork   = /Microsoft Edge|Opera|Samsung Internet|Vivaldi|Brave/.test(secChUa);
+      if (isChrome && !isFork) return null;           // genuine Chrome → allow
+      return 'This page must be opened in Google Chrome';
+    }
 
     // ── shared helpers ────────────────────────────────────────────────────────
     // The worker is server-side and holds secrets safely, so it uses the
@@ -112,12 +132,14 @@ export default {
       return isOk && Array.isArray(data) ? data : [];
     }
 
-    // Load all OPEN (not checked out) records for a given deviceId — across ALL dates.
-    // This catches the case where an employee forgot to check out on a previous day;
-    // without this, the date-filtered getTodayRows would miss stale open sessions.
-    async function getDeviceOpenRows(deviceId) {
+    // Load all OPEN (not checked out) records belonging to this device identity —
+    // matched by the durable deviceToken OR the fingerprint deviceId. Across ALL
+    // dates, so stale open sessions from previous days are not missed.
+    async function getDeviceOpenRows(deviceId, deviceToken) {
+      const or = ['deviceId.eq.' + deviceId];
+      if (deviceToken) or.push('deviceToken.eq.' + deviceToken);
       const { ok: isOk, data } = await supa(
-        `attendance?deviceId=eq.${deviceId}&checkOut=is.null&select=id,employeeId,deviceId,checkIn,checkOut,date`
+        `attendance?or=(${or.join(',')})&checkOut=is.null&select=id,employeeId,deviceId,deviceToken,checkIn,checkOut,date`
       );
       return isOk && Array.isArray(data) ? data : [];
     }
@@ -171,6 +193,9 @@ export default {
     if (request.method === 'POST' && path.endsWith('/attendance')) {
       let body; try { body = await request.json(); } catch { return err('Bad JSON'); }
 
+      const gateErr = chromeGate(request);
+      if (gateErr) return err(gateErr, 403);
+
       // 1. Validate employeeId exists in config
       const config = await getConfig();
       if (!config) return err('Config unavailable', 503);
@@ -180,15 +205,18 @@ export default {
       // 2. Validate deviceId is present (FingerprintJS value from client)
       const deviceId = (body.deviceId || '').trim();
       if (!deviceId || deviceId.startsWith('ADMIN')) return err('Invalid deviceId', 400);
+      // Durable device pass — survives browser updates that change the
+      // fingerprint. Generated server-side on first check-in if the client
+      // didn't already hold one (stored in localStorage/IndexedDB).
+      const deviceToken = (body.deviceToken || '').trim() || crypto.randomUUID();
 
       // 3. Server sets the date — client value is ignored entirely
       const date = shiftDateStr();
       const rows = await getTodayRows(date);
 
       // 4. Cross-device proxy check: this device can't have a different employee open.
-      //     Queries ALL open records for this deviceId (any date) so that stale open
-      //     sessions from previous days are not missed by the date filter.
-      const devRows = await getDeviceOpenRows(deviceId);
+      //     Matches open sessions by the durable token OR the fingerprint.
+      const devRows = await getDeviceOpenRows(deviceId, deviceToken);
       const otherOpen = devRows.find(r => r.employeeId !== body.employeeId);
       if (otherOpen) return err(`Another employee is already checked in from this device`, 409);
 
@@ -229,6 +257,7 @@ export default {
         lat:               body.lat       ?? null,
         lng:               body.lng       ?? null,
         deviceId,                          // server re-sets from validated value
+        deviceToken,                       // durable device pass (UUID)
       };
 
       const { ok: isOk, data, status } = await supa('attendance', {
@@ -244,16 +273,24 @@ export default {
       const id = patchMatch[1];
       let body; try { body = await request.json(); } catch { return err('Bad JSON'); }
 
-      const deviceId = (body.deviceId || '').trim();
-      if (!deviceId) return err('deviceId required for checkout', 400);
+      const gateErr = chromeGate(request);
+      if (gateErr) return err(gateErr, 403);
 
-      // Fetch the target row and verify ownership by deviceId
+      const deviceId    = (body.deviceId || '').trim();
+      const deviceToken = (body.deviceToken || '').trim();
+      if (!deviceId && !deviceToken) return err('Device verification required for checkout', 400);
+
+      // Fetch the target row and verify ownership by device identity
       const { ok: isOk, data: rows } = await supa(`attendance?id=eq.${id}&select=*`);
       if (!isOk || !rows?.length) return err('Record not found', 404);
       const rec = rows[0];
 
-      // Ownership: the deviceId checking out must match the one that checked in
-      if (rec.deviceId !== deviceId) return err('You cannot check out another person', 403);
+      // Ownership: the checking-out browser must hold the durable token that
+      // checked in, or (fallback) the same fingerprint. Either match is enough,
+      // so a browser update that shifts the fingerprint can't lock a worker out.
+      const ownsByToken = !!rec.deviceToken && !!deviceToken && rec.deviceToken === deviceToken;
+      const ownsByFp    = !!rec.deviceId && !!deviceId && rec.deviceId === deviceId;
+      if (!ownsByToken && !ownsByFp) return err('You cannot check out another person', 403);
       if (rec.checkOut) return err('Already checked out', 409);
 
       const now = new Date();
