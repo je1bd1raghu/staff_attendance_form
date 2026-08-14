@@ -36,6 +36,13 @@ alter table attendance add column if not exists "deviceToken" text;
 update attendance set "deviceToken" = "deviceId" where "deviceToken" is null;
 ```
 
+Or run it from the toolkit (needs a Supabase **Personal Access Token**; the ref
+is auto-derived from `--url`):
+
+```python
+python seed_config.py --action migrate --url https://xxxx.supabase.co --sb-token YOUR_PAT
+```
+
 `deviceToken` is a random UUID the app stores in the browser (localStorage +
 IndexedDB). Check-out succeeds when the token **or** the fingerprint matches, so
 a browser update that shifts the fingerprint no longer locks a worker out.
@@ -58,14 +65,15 @@ ready-to-edit template:
 > If `establishments` is omitted or empty, the app falls back to the original
 > single-step flow (name picker shown directly, full roster).
 
-`seed_config.py` is an interactive two-way sync. Run it with no arguments and it
-prompts for the Supabase URL/key, then shows a menu to **push/pull config** and
-**push/pull attendance** to and from the server.
+`seed_config.py` is an interactive toolkit. Run it with no arguments and it shows
+a menu to **push/pull config**, **push/pull attendance**, run the **migration**,
+and **deploy** the Worker. It prompts for credentials only when an action needs
+them.
 
 ```python
 pip install requests --break-system-packages
 
-# Interactive menu (prompts for URL + service_role key, then the action):
+# Interactive menu (prompts for credentials when needed, then the action):
 python seed_config.py
 
 # Provide credentials up front, still shows the menu:
@@ -76,6 +84,8 @@ python seed_config.py --url ... --key ... --action push-config
 python seed_config.py --url ... --key ... --action pull-config     --config config.json
 python seed_config.py --url ... --key ... --action pull-attendance --attendance attendance.csv
 python seed_config.py --url ... --key ... --action push-attendance --attendance attendance.csv
+python seed_config.py --url https://xxxx.supabase.co --sb-token YOUR_PAT --action migrate
+python seed_config.py --action deploy           # no Supabase credentials needed
 ```
 
 - **Pull** writes the server's data to local files (config → JSON, attendance →
@@ -83,6 +93,13 @@ python seed_config.py --url ... --key ... --action push-attendance --attendance 
 - **Push** uploads local files: config upserts row id=1; attendance upserts on
   `id` when the CSV carries ids (so re-pushing a pulled CSV updates in place)
   and inserts fresh rows otherwise. Writes need the **service_role** key.
+- **Migrate** runs `seed/migrations/*.sql` through the Supabase Management API
+  (Personal Access Token + project ref). The SQL is idempotent, so re-running is
+  safe; if REST credentials are available it skips migrations whose column
+  already exists.
+- **Deploy** runs `wrangler deploy` (needs wrangler installed:
+  `npm i -g wrangler`). Pass extra args with `--wrangler-args "--env production"`.
+- `--yes` skips every confirmation prompt for scripted/non-interactive use.
 
 > 
 
