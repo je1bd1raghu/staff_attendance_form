@@ -29,6 +29,11 @@ let scannerStream    = null;
 let scannerAnimFrame = null;
 let scannerPaused    = false;
 
+// ── DATE FORMATTING CONSTANTS ─────────────────────────────────────────────────
+const DAY_FULL   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const DAY_ABBR   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   updateClock();
@@ -190,12 +195,10 @@ function hideLoading() {
 // ── CLOCK ─────────────────────────────────────────────────────────────────────
 function updateClock() {
   const now = new Date();
-  const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  document.getElementById('dispDate').textContent = now.getDate() + ' ' + MONTHS[now.getMonth()] + ' ' + now.getFullYear();
+  document.getElementById('dispDate').textContent = now.getDate() + ' ' + MONTH_ABBR[now.getMonth()] + ' ' + now.getFullYear();
   document.getElementById('dispTime').textContent = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
-  document.getElementById('dispDay').textContent  = DAYS[now.getDay()].slice(0,3);
-  document.getElementById('headerDate').textContent = DAYS[now.getDay()] + ', ' + MONTHS[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+  document.getElementById('dispDay').textContent  = DAY_FULL[now.getDay()].slice(0,3);
+  document.getElementById('headerDate').textContent = DAY_FULL[now.getDay()] + ', ' + MONTH_ABBR[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
 }
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
@@ -489,12 +492,6 @@ function haversine(lat1, lng1, lat2, lng2) {
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*toR) * Math.cos(lat2*toR) * Math.sin(dLng/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
-function setLoc(cls, icon, title, sub) {
-  document.getElementById('locStatus').className  = 'loc-status ' + cls;
-  document.getElementById('locIcon').textContent  = icon;
-  document.getElementById('locTitle').textContent = title;
-  document.getElementById('locSub').textContent   = sub;
-}
 function resetLoc() {
   locVerified = false; locName = '';
   setLoc('idle', '📍', 'Location not checked', 'Select your name to begin');
@@ -523,12 +520,7 @@ function updateBtns() {
   btnIn.title  = '';
   btnOut.title = '';
   // All records for this employee today, sorted oldest-first
-  const empRecs = todayRecs
-    .filter(r => r.employeeId === id && r.date === shiftDateStr())
-    .sort((a, b) => (a.checkInTimestamp || '').localeCompare(b.checkInTimestamp || ''));
-  const lastRec       = empRecs.length ? empRecs[empRecs.length - 1] : null;
-  const completedSess = empRecs.filter(r => r.checkIn && r.checkOut).length;
-  const hasOpenRec    = lastRec && lastRec.checkIn && !lastRec.checkOut;
+  const { lastRec, completedSess, hasOpenRec } = empSessionState(id);
 
   if (!lastRec) {
     // No session yet — allow first check-in
@@ -570,6 +562,7 @@ async function doCheckIn() {
     location: locName, lat: currentPos.lat, lng: currentPos.lng, deviceId, deviceToken };
   await withBtnLoad('btnIn', async () => {
     const inserted = await appendRecord(rec);
+    if (!inserted) return;  // check-in cancelled via incomplete-days warning modal
     todayRecs.push({ ...rec, id: inserted.id });  // store server-assigned UUID
     renderRecords(); updateBtns();
     showToast('✅ Checked in at ' + rec.checkIn, 'success');
@@ -609,6 +602,50 @@ async function withBtnLoad(id, fn) {
   btn.innerHTML = orig;
 }
 
+// ── INCOMPLETE CHECK-OUT WARNING MODAL ───────────────────────────────────────
+// When an employee has previous days without a check-out, check-in is not blocked —
+// the employee is warned instead and must confirm (I Agree) to proceed.
+let _warnResolve = null;
+
+function confirmIncompleteCheckIn(dates, name, isSelf) {
+  return new Promise((resolve) => {
+    _warnResolve = resolve;
+    const daysEl = document.getElementById('warnDays');
+    daysEl.innerHTML = '';
+    dates.forEach(d => {
+      const chip = document.createElement('div');
+      chip.className = 'warn-day';
+      chip.textContent = d;
+      daysEl.appendChild(chip);
+    });
+    const plural = dates.length > 1;
+    const who    = isSelf ? 'You' : name + ' has';
+    document.getElementById('warnSub').textContent =
+      who + ' not checked out on ' + (plural ? dates.length + ' previous days' : 'a previous day') + '.';
+    document.getElementById('warnText').textContent =
+      who + ' not checked out on ' + (plural ? 'these days' : 'this day') +
+      '. To address this issue, contact your office. Otherwise, salary may be deducted for ' +
+      (plural ? 'these days' : 'this day') + '.';
+    document.getElementById('warnOverlay').classList.add('open');
+  });
+}
+
+function warnAgree() {
+  document.getElementById('warnOverlay').classList.remove('open');
+  const resolve = _warnResolve; _warnResolve = null;
+  if (resolve) resolve(true);
+}
+
+function warnDismiss() {
+  document.getElementById('warnOverlay').classList.remove('open');
+  const resolve = _warnResolve; _warnResolve = null;
+  if (resolve) resolve(false);
+}
+
+function warnOverlayClick(e) {
+  if (e.target.id === 'warnOverlay') warnDismiss();
+}
+
 // ── RECORD OPS ────────────────────────────────────────────────────────────────
 // Client checks below are UX fast-fails — all rules are re-enforced server-side
 // in the worker and cannot be bypassed by a malicious or modified client.
@@ -620,13 +657,15 @@ async function appendRecord(rec) {
       r.checkIn && !r.checkOut && r.employeeId !== rec.employeeId);
     if (openDevRec) throw new Error('Another employee (' + openDevRec.name + ') is currently checked in from this device');
   }
-  const openRec = records.find(r => r.employeeId === rec.employeeId && r.checkIn && !r.checkOut);
-  if (openRec) {
-    if (openRec.date === rec.date) {
-      throw new Error(rec.name + ' is already checked in today — check out first');
-    } else {
-      throw new Error(rec.name + ' has an incomplete day from ' + openRec.date + ' (missing check-out) — contact your admin to correct the record');
-    }
+  const openRecs = records.filter(r => r.employeeId === rec.employeeId && r.checkIn && !r.checkOut);
+  const openToday = openRecs.find(r => r.date === rec.date);
+  if (openToday) throw new Error(rec.name + ' is already checked in today — check out first');
+  // Previous days without a check-out no longer block check-in — the employee is
+  // shown a warning modal and must confirm (I Agree) before the check-in proceeds.
+  const openPrev = openRecs.filter(r => r.date !== rec.date);
+  if (openPrev.length) {
+    const agreed = await confirmIncompleteCheckIn(openPrev.map(r => r.date).sort(), rec.name, true);
+    if (!agreed) return null;   // employee cancelled — do not check in
   }
   const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
   if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
@@ -649,16 +688,23 @@ function filteredRecords() {
   });
 }
 
+// Shared record-list renderer: sorts by check-in time and maps each row.
+function renderRecordList(el, list) {
+  if (!el) return;
+  if (!list.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>'; return; }
+  const sorted = [...list].sort((a,b) => (a.checkInTimestamp||'').localeCompare(b.checkInTimestamp||''));
+  el.innerHTML = sorted.map(r => recordHTML(r)).join('');
+}
+
 function renderRecords() {
   const el  = document.getElementById('recordsList');
   const bar = document.getElementById('recFilter');
   if (bar) bar.style.display = todayRecs.length ? '' : 'none';
   updateRecFilterCounts();
-  if (!todayRecs.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>'; return; }
+  if (!todayRecs.length) { renderRecordList(el, []); return; }
   const list = filteredRecords();
   if (!list.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🔍</div>No matching records</div>'; return; }
-  const sorted = [...list].sort((a,b) => (a.checkInTimestamp||'').localeCompare(b.checkInTimestamp||''));
-  el.innerHTML = sorted.map(r => recordHTML(r)).join('');
+  renderRecordList(el, list);
 }
 
 function updateRecFilterCounts() {
@@ -687,15 +733,11 @@ function setRecFilter(status) {
 }
 
 function renderAdminRecords() {
-  const el = document.getElementById('adminRecordsList');
-  if (!el) return;
-  if (!todayRecs.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>'; return; }
-  const sorted = [...todayRecs].sort((a,b) => (a.checkInTimestamp||'').localeCompare(b.checkInTimestamp||''));
-  el.innerHTML = sorted.map(r => recordHTML(r)).join('');
+  renderRecordList(document.getElementById('adminRecordsList'), todayRecs);
 }
 
 function recordHTML(r) {
-  const init  = r.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+  const init  = initials(r.name);
   const desig = r.designation ? `<div class="record-desig">🏷️ ${r.designation}</div>` : '';
   const inC   = r.checkIn  ? `<span class="time-chip chip-in">▲ ${r.checkIn}</span>` : '';
   const outC  = r.checkOut ? `<span class="time-chip chip-out">▼ ${r.checkOut}</span>` : (r.checkIn ? '<span class="time-chip chip-pending">⏳ Active</span>' : '');
@@ -720,7 +762,7 @@ function openGateModal(id) {
   const r = todayRecs.find(x => x.id === id);
   if (!r) return;
 
-  const init = (r.name||'?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+  const init = initials(r.name);
   document.getElementById('gateAvatar').textContent = init;
   document.getElementById('gateName').textContent   = r.name || '—';
   const desigEl = document.getElementById('gateDesig');
@@ -775,9 +817,7 @@ function fmtStampDate(ts) {
   if (!ts) return '';
   const d = new Date(ts);
   if (isNaN(d.getTime())) return '';
-  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const M    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + M[d.getMonth()];
+  return DAY_ABBR[d.getDay()] + ', ' + d.getDate() + ' ' + MONTH_ABBR[d.getMonth()];
 }
 
 function closeGateModal() { document.getElementById('gateOverlay').classList.remove('open'); }
@@ -795,6 +835,22 @@ document.addEventListener('keydown', function(e) {
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function getEmp()    { const id = document.getElementById('empSelect').value; return employees.find(e => e.id === id) || null; }
+
+// Uppercase initials from a name (max 2), e.g. "John Doe" → "JD".
+function initials(name) {
+  return (name || '?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+}
+
+// Session state for one employee today: sorted record list plus derived flags.
+function empSessionState(empId) {
+  const empRecs = todayRecs
+    .filter(r => r.employeeId === empId && r.date === shiftDateStr())
+    .sort((a, b) => (a.checkInTimestamp || '').localeCompare(b.checkInTimestamp || ''));
+  const lastRec       = empRecs.length ? empRecs[empRecs.length - 1] : null;
+  const completedSess = empRecs.filter(r => r.checkIn && r.checkOut).length;
+  const hasOpenRec    = lastRec && lastRec.checkIn && !lastRec.checkOut;
+  return { empRecs, lastRec, completedSess, hasOpenRec };
+}
 
 // ── SHIFT DATE ────────────────────────────────────────────────────────────────
 // A "workday" runs from ~sunrise to next sunrise. Any time between midnight and
@@ -879,7 +935,6 @@ function pinDel() {
 function renderPinDots(error) {
   const container = document.getElementById('pinDots');
   container.innerHTML = '';
-  const len = Math.max(pinBuffer.length, 1);  // always show at least 1 dot placeholder
   for (let i = 0; i < pinBuffer.length; i++) {
     const dot = document.createElement('div');
     dot.className = 'pin-dot' + (error ? ' error' : ' filled');
@@ -961,15 +1016,19 @@ function revokeAdminSession() {
   // Exit full admin mode if active
   if (isAdmin) {
     isAdmin = false;
-    stopAdminWatch();
-    stopScanner();
-    scannedEmpId     = null;
-    scannedPrintedAt = null;
-    document.getElementById('adminView').style.display    = 'none';
-    document.getElementById('employeeView').style.display = 'block';
-    document.getElementById('adminBtn').classList.remove('admin-active');
+    teardownAdminUi();
   }
   verifiedPin = null;
+}
+
+function teardownAdminUi() {
+  stopAdminWatch();
+  stopScanner();
+  scannedEmpId     = null;
+  scannedPrintedAt = null;
+  document.getElementById('adminView').style.display    = 'none';
+  document.getElementById('employeeView').style.display = 'block';
+  document.getElementById('adminBtn').classList.remove('admin-active');
 }
 
 function enterAdmin() {
@@ -989,13 +1048,7 @@ function exitAdmin() {
   _adminTimer = null;
   isAdmin = false;
   verifiedPin = null;
-  stopAdminWatch();
-  stopScanner();
-  scannedEmpId     = null;
-  scannedPrintedAt = null;
-  document.getElementById('adminView').style.display    = 'none';
-  document.getElementById('employeeView').style.display = 'block';
-  document.getElementById('adminBtn').classList.remove('admin-active');
+  teardownAdminUi();
 }
 
 // ── ADMIN LOCATION PILLS ──────────────────────────────────────────────────────
@@ -1018,14 +1071,17 @@ function selectAdminLoc(id) {
 }
 
 // ── ADMIN GPS ─────────────────────────────────────────────────────────────────
-function setAdminLoc(cls, icon, title, sub) {
-  const el = document.getElementById('adminLocStatus');
+// Shared loc-status updater — prefix selects employee ("loc") vs admin ("adminLoc") ids.
+function setLocState(cls, icon, title, sub, prefix) {
+  const el = document.getElementById(prefix + 'Status');
   if (!el) return;
   el.className = 'loc-status ' + cls;
-  document.getElementById('adminLocIcon').textContent  = icon;
-  document.getElementById('adminLocTitle').textContent = title;
-  document.getElementById('adminLocSub').textContent   = sub;
+  document.getElementById(prefix + 'Icon').textContent  = icon;
+  document.getElementById(prefix + 'Title').textContent = title;
+  document.getElementById(prefix + 'Sub').textContent   = sub;
 }
+function setLoc(cls, icon, title, sub)      { setLocState(cls, icon, title, sub, 'loc'); }
+function setAdminLoc(cls, icon, title, sub) { setLocState(cls, icon, title, sub, 'adminLoc'); }
 
 function startAdminWatch() {
   if (adminWatchId !== null) return;
@@ -1096,12 +1152,7 @@ function updateAdminActionBtns() {
     if (scannedEmpId) {
       const emp = employees.find(e => e.id === scannedEmpId);
       if (emp) {
-        const empRecs = todayRecs
-          .filter(r => r.employeeId === emp.id && r.date === shiftDateStr())
-          .sort((a, b) => (a.checkInTimestamp || '').localeCompare(b.checkInTimestamp || ''));
-        const lastRec       = empRecs.length ? empRecs[empRecs.length - 1] : null;
-        const completedSess = empRecs.filter(r => r.checkIn && r.checkOut).length;
-        const hasOpenRec    = lastRec && lastRec.checkIn && !lastRec.checkOut;
+        const { completedSess, hasOpenRec } = empSessionState(emp.id);
         if (hasOpenRec) {
           btnIn.disabled  = true;
           btnOut.disabled = false;
@@ -1228,15 +1279,10 @@ function onQrDetected(data) {
   resetAdminTimer();
 
   // Find records for today, sorted oldest-first
-  const empRecs = todayRecs
-    .filter(r => r.employeeId === emp.id && r.date === shiftDateStr())
-    .sort((a, b) => (a.checkInTimestamp || '').localeCompare(b.checkInTimestamp || ''));
-  const lastRec       = empRecs.length ? empRecs[empRecs.length - 1] : null;
-  const completedSess = empRecs.filter(r => r.checkIn && r.checkOut).length;
-  const hasOpenRec    = lastRec && lastRec.checkIn && !lastRec.checkOut;
+  const { lastRec, completedSess, hasOpenRec } = empSessionState(emp.id);
   const capReached    = completedSess >= MAX_CHECKINS_PER_DAY && !hasOpenRec;
 
-  const init = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+  const init = initials(emp.name);
   document.getElementById('scanAvatar').textContent  = init;
   document.getElementById('scanName').textContent    = emp.name;
   document.getElementById('scanDesig').textContent   = emp.designation || '';
@@ -1280,11 +1326,18 @@ async function adminDoIn() {
   };
   document.getElementById('btnScanIn').disabled = true;
   document.getElementById('btnScanIn').innerHTML = '<span class="spinner"></span>';
+  let didCheckIn = false;
   try {
     const records = await attGet().catch(() => []);
     // Check there is no currently open record (not checked out) for this employee today
     const openRec = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && !r.checkOut);
     if (openRec) throw new Error(rec.name + ' is already checked in — check out first');
+    // Previous days without a check-out no longer block admin check-in — warn and confirm
+    const openPrev = records.filter(r => r.employeeId === rec.employeeId && r.date !== rec.date && r.checkIn && !r.checkOut);
+    if (openPrev.length) {
+      const agreed = await confirmIncompleteCheckIn(openPrev.map(r => r.date).sort(), rec.name, false);
+      if (!agreed) { showToast('Check-in cancelled', 'warning'); return; }
+    }
     const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
     if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
     const inserted = await attAdminInsert({ ...rec, printedAt: scannedPrintedAt });
@@ -1295,11 +1348,13 @@ async function adminDoIn() {
     document.getElementById('scanState').textContent = '✅ Checked in at ' + rec.checkIn;
     document.getElementById('btnScanIn').disabled  = true;
     document.getElementById('btnScanOut').disabled = false;
+    didCheckIn = true;
   } catch(e) {
     showToast(e.message, 'error');
-    document.getElementById('btnScanIn').disabled = false;
+  } finally {
+    document.getElementById('btnScanIn').innerHTML = '✅ Check IN';
+    if (!didCheckIn) document.getElementById('btnScanIn').disabled = false;
   }
-  document.getElementById('btnScanIn').innerHTML = '✅ Check IN';
 }
 
 async function adminDoOut() {
@@ -1365,123 +1420,130 @@ function triggerDownload(filename, content) {
   document.body.removeChild(a);
 }
 
-async function downloadRawCsv() {
-  const btn = event.currentTarget;
+// Disable + dim a download button while `fn` runs; restores it afterwards and
+// rethrows any error so the caller can show a contextual failure toast.
+async function withDownloadBusy(btn, fn) {
   btn.disabled = true;
   btn.style.opacity = '0.6';
   try {
-    const records = await attGet();
-    const content = csvStringify(records);
-    const d = new Date();
-    const ts = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-    triggerDownload('attendance_records_' + ts + '.csv', content);
-    showToast('Downloaded ' + records.length + ' attendance records successfully', 'success');
-  } catch(e) {
-    showToast('Failed to download attendance records: ' + e.message, 'error');
+    await fn();
   } finally {
     btn.disabled = false;
     btn.style.opacity = '';
   }
 }
 
+async function downloadRawCsv() {
+  const btn = event.currentTarget;
+  try {
+    await withDownloadBusy(btn, async () => {
+      const records = await attGet();
+      const content = csvStringify(records);
+      const d = new Date();
+      const ts = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+      triggerDownload('attendance_records_' + ts + '.csv', content);
+      showToast('Downloaded ' + records.length + ' attendance records successfully', 'success');
+    });
+  } catch(e) {
+    showToast('Failed to download attendance records: ' + e.message, 'error');
+  }
+}
+
 async function downloadSummaryCsv() {
   const btn = event.currentTarget;
-  btn.disabled = true;
-  btn.style.opacity = '0.6';
   try {
-    const records  = await attGet();
-    const monthSel = document.getElementById('summaryMonthSel');
-    const filter   = monthSel ? monthSel.value : '';   // "YYYY-MM" or "" for all
+    await withDownloadBusy(btn, async () => {
+      const records  = await attGet();
+      const monthSel = document.getElementById('summaryMonthSel');
+      const filter   = monthSel ? monthSel.value : '';   // "YYYY-MM" or "" for all
 
-    // Group: key = employeeId + "|" + "YYYY-MM"
-    // First pass: collect all records per employee-month
-    const groups = {};
-    for (const r of records) {
-      if (!r.date) continue;
-      const monthKey = r.date.slice(0, 7);  // "YYYY-MM"
-      if (filter && monthKey !== filter) continue;
-      const key = (r.employeeId || '') + '|' + monthKey;
-      if (!groups[key]) {
-        groups[key] = {
-          employeeId:  r.employeeId || '',
-          name:        r.name || '',
-          designation: r.designation || '',
-          monthKey,
-          // date → { completed: bool, open: bool }
-          dateMap:     {},
-          sessions:    0,
-          totalMins:   0,
-        };
-      }
-      const g = groups[key];
-      if (!g.dateMap[r.date]) g.dateMap[r.date] = { completed: false, open: false };
-
-      if (r.checkIn && r.checkOut) {
-        // Completed session
-        g.dateMap[r.date].completed = true;
-        g.sessions++;
-        let mins = 0;
-        if (r.checkInTimestamp && r.checkOutTimestamp) {
-          const ms = new Date(r.checkOutTimestamp) - new Date(r.checkInTimestamp);
-          if (ms > 0) mins = ms / 60000;
-        } else {
-          const [ih, im] = r.checkIn.split(':').map(Number);
-          const [oh, om] = r.checkOut.split(':').map(Number);
-          if (!isNaN(ih) && !isNaN(oh)) {
-            mins = (oh * 60 + om) - (ih * 60 + im);
-            if (mins < 0) mins += 24 * 60;
-          }
+      // Group: key = employeeId + "|" + "YYYY-MM"
+      // First pass: collect all records per employee-month
+      const groups = {};
+      for (const r of records) {
+        if (!r.date) continue;
+        const monthKey = r.date.slice(0, 7);  // "YYYY-MM"
+        if (filter && monthKey !== filter) continue;
+        const key = (r.employeeId || '') + '|' + monthKey;
+        if (!groups[key]) {
+          groups[key] = {
+            employeeId:  r.employeeId || '',
+            name:        r.name || '',
+            designation: r.designation || '',
+            monthKey,
+            // date → { completed: bool, open: bool }
+            dateMap:     {},
+            sessions:    0,
+            totalMins:   0,
+          };
         }
-        g.totalMins += mins;
-      } else if (r.checkIn && !r.checkOut) {
-        // Open / incomplete session
-        g.dateMap[r.date].open = true;
+        const g = groups[key];
+        if (!g.dateMap[r.date]) g.dateMap[r.date] = { completed: false, open: false };
+
+        if (r.checkIn && r.checkOut) {
+          // Completed session
+          g.dateMap[r.date].completed = true;
+          g.sessions++;
+          let mins = 0;
+          if (r.checkInTimestamp && r.checkOutTimestamp) {
+            const ms = new Date(r.checkOutTimestamp) - new Date(r.checkInTimestamp);
+            if (ms > 0) mins = ms / 60000;
+          } else {
+            const [ih, im] = r.checkIn.split(':').map(Number);
+            const [oh, om] = r.checkOut.split(':').map(Number);
+            if (!isNaN(ih) && !isNaN(oh)) {
+              mins = (oh * 60 + om) - (ih * 60 + im);
+              if (mins < 0) mins += 24 * 60;
+            }
+          }
+          g.totalMins += mins;
+        } else if (r.checkIn && !r.checkOut) {
+          // Open / incomplete session
+          g.dateMap[r.date].open = true;
+        }
       }
-    }
 
-    // Build CSV rows sorted by month, then name
-    const rows = Object.values(groups).sort((a, b) =>
-      a.monthKey.localeCompare(b.monthKey) || a.name.localeCompare(b.name)
-    );
+      // Build CSV rows sorted by month, then name
+      const rows = Object.values(groups).sort((a, b) =>
+        a.monthKey.localeCompare(b.monthKey) || a.name.localeCompare(b.name)
+      );
 
-    const header = ['Month', 'Employee ID', 'Name', 'Designation',
-                    'Days Present', 'Incomplete Days', 'Incomplete Dates',
-                    'Total Sessions', 'Total Duty Hours', 'Avg Daily Hours'];
-    const lines = [header.join(',')];
-    for (const g of rows) {
-      // Days present = dates with at least one completed session
-      const presentDates    = Object.entries(g.dateMap).filter(([, v]) => v.completed).map(([d]) => d).sort();
-      // Incomplete = dates where ALL records are open (no completed session on that date)
-      const incompleteDates = Object.entries(g.dateMap).filter(([, v]) => v.open && !v.completed).map(([d]) => d).sort();
-      const days      = presentDates.length;
-      const totalH    = (g.totalMins / 60).toFixed(2);
-      const avgH      = days > 0 ? (g.totalMins / 60 / days).toFixed(2) : '0.00';
-      const [y, m]    = g.monthKey.split('-');
-      const monthLabel = new Date(+y, +m - 1, 1)
-        .toLocaleString('en-IN', { month: 'short', year: 'numeric' });
-      lines.push([
-        csvEscape(monthLabel),
-        csvEscape(g.employeeId),
-        csvEscape(g.name),
-        csvEscape(g.designation),
-        days,
-        incompleteDates.length,
-        csvEscape(incompleteDates.join(', ')),
-        g.sessions,
-        totalH,
-        avgH
-      ].join(','));
-    }
+      const header = ['Month', 'Employee ID', 'Name', 'Designation',
+                      'Days Present', 'Incomplete Days', 'Incomplete Dates',
+                      'Total Sessions', 'Total Duty Hours', 'Avg Daily Hours'];
+      const lines = [header.join(',')];
+      for (const g of rows) {
+        // Days present = dates with at least one completed session
+        const presentDates    = Object.entries(g.dateMap).filter(([, v]) => v.completed).map(([d]) => d).sort();
+        // Incomplete = dates where ALL records are open (no completed session on that date)
+        const incompleteDates = Object.entries(g.dateMap).filter(([, v]) => v.open && !v.completed).map(([d]) => d).sort();
+        const days      = presentDates.length;
+        const totalH    = (g.totalMins / 60).toFixed(2);
+        const avgH      = days > 0 ? (g.totalMins / 60 / days).toFixed(2) : '0.00';
+        const [y, m]    = g.monthKey.split('-');
+        const monthLabel = new Date(+y, +m - 1, 1)
+          .toLocaleString('en-IN', { month: 'short', year: 'numeric' });
+        lines.push([
+          csvEscape(monthLabel),
+          csvEscape(g.employeeId),
+          csvEscape(g.name),
+          csvEscape(g.designation),
+          days,
+          incompleteDates.length,
+          csvEscape(incompleteDates.join(', ')),
+          g.sessions,
+          totalH,
+          avgH
+        ].join(','));
+      }
 
-    const content = lines.join('\r\n');
-    const suffix  = filter ? '_' + filter : '_all';
-    triggerDownload('attendance_summary' + suffix + '.csv', content);
-    showToast('Generated summary with ' + rows.length + ' employee-month rows', 'success');
+      const content = lines.join('\r\n');
+      const suffix  = filter ? '_' + filter : '_all';
+      triggerDownload('attendance_summary' + suffix + '.csv', content);
+      showToast('Generated summary with ' + rows.length + ' employee-month rows', 'success');
+    });
   } catch(e) {
     showToast('Failed to generate summary: ' + e.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.style.opacity = '';
   }
 }
 
@@ -1550,9 +1612,7 @@ let _uuidToEmpId  = {};
 let serverShiftDate = null;
 
 function formatPrintedOn(d) {
-  const DAYS  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const MONTHS= ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `Printed on ${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return `Printed on ${DAY_ABBR[d.getDay()]}, ${d.getDate()} ${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 // ── QR PRINT PAGE ─────────────────────────────────────────────────────────────
@@ -1597,7 +1657,7 @@ async function buildQrGrid(query) {
     return;
   }
   for (const emp of list) {
-    const init    = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+    const init    = initials(emp.name);
     const checked = _selectedEmpIds.has(emp.id);
     const item    = document.createElement('div');
     item.className = 'emp-list-item' + (checked ? ' selected' : '');
@@ -1671,7 +1731,7 @@ async function openIdCard(emp) {
   _idCardPrintedAt = new Date().toISOString();
   const uuid    = await getEmpUuid(emp);
   const payload = uuid + '|' + _idCardPrintedAt;
-  const init    = emp.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+  const init    = initials(emp.name);
 
   document.getElementById('idCardAvatar').textContent = init;
   document.getElementById('idCardName').textContent   = emp.name;

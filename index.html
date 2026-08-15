@@ -163,6 +163,22 @@
   </div>
 </div>
 
+<!-- INCOMPLETE CHECK-OUT WARNING -->
+<div class="warn-overlay" id="warnOverlay" role="alertdialog" aria-modal="true" aria-labelledby="warnTitle" onclick="warnOverlayClick(event)">
+  <div class="warn-box">
+    <button class="warn-close" onclick="warnDismiss()" title="Cancel">✕</button>
+    <div class="warn-icon">⚠️</div>
+    <div class="warn-title" id="warnTitle">Incomplete Check-Out</div>
+    <div class="warn-sub" id="warnSub"></div>
+    <div class="warn-days" id="warnDays"></div>
+    <div class="warn-text" id="warnText"></div>
+    <div class="warn-actions">
+      <button class="warn-btn warn-cancel" onclick="warnDismiss()">Cancel</button>
+      <button class="warn-btn warn-agree" onclick="warnAgree()">I Agree</button>
+    </div>
+  </div>
+</div>
+
 <!-- HEADER -->
 <div class="header" id="mainHeader">
   <p id="headerDate">Loading…</p>

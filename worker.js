@@ -145,8 +145,8 @@ export default {
     }
 
     // Load all OPEN records for a given employee — across ALL devices and dates.
-    // This prevents an employee from checking in from a second device while they
-    // have an open session on another device (e.g. forgot to check out).
+    // Only a same-day open session blocks a new check-in; open sessions from
+    // previous days (forgot to check out) are surfaced to the client as a warning.
     async function getEmployeeOpenRows(employeeId) {
       const { ok: isOk, data } = await supa(
         `attendance?employeeId=eq.${employeeId}&checkOut=is.null&select=id,employeeId,deviceId,checkIn,checkOut,date`
@@ -161,9 +161,84 @@ export default {
       return data[0].data;
     }
 
+    // Parse a JSON request body — null when malformed.
+    async function readJson(request) {
+      try { return await request.json(); } catch { return null; }
+    }
+
+    // Validate employeeId against config; returns { emp } or { error }.
+    async function loadEmployee(body) {
+      const config = await getConfig();
+      if (!config) return { error: err('Config unavailable', 503) };
+      const emp = (config.employees || []).find(e => e.id === body.employeeId);
+      if (!emp) return { error: err('Unknown employeeId', 400) };
+      return { emp };
+    }
+
+    // The single OPEN record for an employee on a given shift date, if any.
+    async function getSameDayOpenRow(employeeId, date) {
+      const empRows = await getEmployeeOpenRows(employeeId);
+      return empRows.find(r => r.date === date);
+    }
+
+    function completedSessionCount(rows, employeeId) {
+      return rows.filter(r => r.employeeId === employeeId && r.checkIn && r.checkOut).length;
+    }
+
+    // Build a check-in row. deviceToken is set only for self check-in.
+    function checkInRow(emp, date, body, now, deviceId, deviceToken) {
+      const row = {
+        employeeId:        emp.id,
+        name:              emp.name,
+        designation:       emp.designation || '',
+        date,                              // server-computed, ignores client value
+        checkIn:           body.checkIn || nowTimeStr(now),  // client local time preferred
+        checkInTimestamp:  now.toISOString(),                // server UTC, source of truth
+        checkOut:          null,
+        checkOutTimestamp: null,
+        location:          body.location  || '',
+        lat:               body.lat       ?? null,
+        lng:               body.lng       ?? null,
+        deviceId,                          // server re-sets from validated value
+      };
+      if (deviceToken) row.deviceToken = deviceToken;   // durable device pass (UUID)
+      return row;
+    }
+
+    // Insert a check-in row and respond with the created record.
+    async function insertRow(row) {
+      const { ok: isOk, data, status } = await supa('attendance', {
+        method: 'POST', body: JSON.stringify(row),
+      });
+      if (!isOk) return err(data?.message || 'Insert failed', status);
+      return ok(Array.isArray(data) ? data[0] : data, 201);
+    }
+
+    // Fetch a single attendance record by id, or null.
+    async function fetchRecord(id) {
+      const { ok: isOk, data } = await supa(`attendance?id=eq.${id}&select=*`);
+      if (!isOk || !data?.length) return null;
+      return data[0];
+    }
+
+    // Apply a check-out to a record and respond with the updated row.
+    async function checkoutRow(id, body) {
+      const now = new Date();
+      const patch = {
+        checkOut:          body.checkOut || nowTimeStr(now),  // client local time preferred
+        checkOutTimestamp: now.toISOString(),                 // server UTC, source of truth
+      };
+      const { ok: pOk, data: pData, status } = await supa(`attendance?id=eq.${id}`, {
+        method: 'PATCH', body: JSON.stringify(patch),
+      });
+      if (!pOk) return err(pData?.message || 'Update failed', status);
+      return ok(Array.isArray(pData) ? pData[0] : pData);
+    }
+
     // ── POST /verify-pin ──────────────────────────────────────────────────────
     if (request.method === 'POST' && path.endsWith('/verify-pin')) {
-      let body; try { body = await request.json(); } catch { return err('Bad JSON'); }
+      const body = await readJson(request);
+      if (!body) return err('Bad JSON');
       if (!env.ADMIN_PIN) return err('ADMIN_PIN not configured', 500);
       return body.adminPin === env.ADMIN_PIN ? ok({ ok: true }) : err('Incorrect PIN', 403);
     }
@@ -191,16 +266,15 @@ export default {
 
     // ── POST /attendance  (employee self check-in) ────────────────────────────
     if (request.method === 'POST' && path.endsWith('/attendance')) {
-      let body; try { body = await request.json(); } catch { return err('Bad JSON'); }
+      const body = await readJson(request);
+      if (!body) return err('Bad JSON');
 
       const gateErr = chromeGate(request);
       if (gateErr) return err(gateErr, 403);
 
       // 1. Validate employeeId exists in config
-      const config = await getConfig();
-      if (!config) return err('Config unavailable', 503);
-      const emp = (config.employees || []).find(e => e.id === body.employeeId);
-      if (!emp) return err('Unknown employeeId', 400);
+      const { emp, error } = await loadEmployee(body);
+      if (error) return error;
 
       // 2. Validate deviceId is present (FingerprintJS value from client)
       const deviceId = (body.deviceId || '').trim();
@@ -220,23 +294,15 @@ export default {
       const otherOpen = devRows.find(r => r.employeeId !== body.employeeId);
       if (otherOpen) return err(`Another employee is already checked in from this device`, 409);
 
-      // 5. No double check-in for the same employee — across ALL devices and all dates.
-      //    This prevents re-entry when the employee has an open session on another device
-      //    (or forgot to check out on a previous day).
-      const empRows = await getEmployeeOpenRows(body.employeeId);
-      if (empRows.length) {
-        const openRec    = empRows[0];
-        const isToday    = openRec.date === date;
-        const msg        = isToday
-          ? `${emp.name} is already checked in today — check out first`
-          : `${emp.name} has an incomplete day from ${openRec.date} (missing check-out) — contact your admin to correct the record`;
-        return err(msg, 409);
-      }
+      // 5. No double check-in TODAY. Open sessions from previous days (forgot to
+      //    check out) no longer block check-in — the client shows a warning modal
+      //    listing those days and requires the employee to confirm before proceeding.
+      const openToday = await getSameDayOpenRow(body.employeeId, date);
+      if (openToday)
+        return err(`${emp.name} is already checked in today — check out first`, 409);
 
       // 6. Daily cap
-      const completed = rows.filter(r =>
-        r.employeeId === body.employeeId && r.checkIn && r.checkOut
-      ).length;
+      const completed = completedSessionCount(rows, body.employeeId);
       if (completed >= MAX_CHECKINS_PER_DAY)
         return err(`${emp.name} has reached the daily limit of ${MAX_CHECKINS_PER_DAY} sessions`, 409);
 
@@ -244,34 +310,16 @@ export default {
       // local-time strings for checkIn/checkOut so they display correctly.
       // checkInTimestamp is the authoritative ISO timestamp (always UTC).
       const now = new Date();
-      const row = {
-        employeeId:        emp.id,
-        name:              emp.name,
-        designation:       emp.designation || '',
-        date,                              // server-computed, ignores client value
-        checkIn:           body.checkIn || nowTimeStr(now),  // client local time preferred
-        checkInTimestamp:  now.toISOString(),                // server UTC, source of truth
-        checkOut:          null,
-        checkOutTimestamp: null,
-        location:          body.location  || '',
-        lat:               body.lat       ?? null,
-        lng:               body.lng       ?? null,
-        deviceId,                          // server re-sets from validated value
-        deviceToken,                       // durable device pass (UUID)
-      };
-
-      const { ok: isOk, data, status } = await supa('attendance', {
-        method: 'POST', body: JSON.stringify(row),
-      });
-      if (!isOk) return err(data?.message || 'Insert failed', status);
-      return ok(Array.isArray(data) ? data[0] : data, 201);
+      const row = checkInRow(emp, date, body, now, deviceId, deviceToken);
+      return insertRow(row);
     }
 
     // ── PATCH /attendance/:id  (employee self check-out) ─────────────────────
     const patchMatch = path.match(/^\/attendance\/([0-9a-f-]{36})$/);
     if (request.method === 'PATCH' && patchMatch) {
       const id = patchMatch[1];
-      let body; try { body = await request.json(); } catch { return err('Bad JSON'); }
+      const body = await readJson(request);
+      if (!body) return err('Bad JSON');
 
       const gateErr = chromeGate(request);
       if (gateErr) return err(gateErr, 403);
@@ -281,9 +329,8 @@ export default {
       if (!deviceId && !deviceToken) return err('Device verification required for checkout', 400);
 
       // Fetch the target row and verify ownership by device identity
-      const { ok: isOk, data: rows } = await supa(`attendance?id=eq.${id}&select=*`);
-      if (!isOk || !rows?.length) return err('Record not found', 404);
-      const rec = rows[0];
+      const rec = await fetchRecord(id);
+      if (!rec) return err('Record not found', 404);
 
       // Ownership: the checking-out browser must hold the durable token that
       // checked in, or (fallback) the same fingerprint. Either match is enough,
@@ -293,32 +340,21 @@ export default {
       if (!ownsByToken && !ownsByFp) return err('You cannot check out another person', 403);
       if (rec.checkOut) return err('Already checked out', 409);
 
-      const now = new Date();
-      const patch = {
-        checkOut:          body.checkOut || nowTimeStr(now),  // client local time preferred
-        checkOutTimestamp: now.toISOString(),                 // server UTC, source of truth
-      };
-
-      const { ok: pOk, data: pData, status } = await supa(`attendance?id=eq.${id}`, {
-        method: 'PATCH', body: JSON.stringify(patch),
-      });
-      if (!pOk) return err(pData?.message || 'Update failed', status);
-      return ok(Array.isArray(pData) ? pData[0] : pData);
+      return checkoutRow(id, body);
     }
 
     // ── POST /attendance/admin  (admin check-in via QR scan) ─────────────────
     if (request.method === 'POST' && path.endsWith('/attendance/admin')) {
-      let body; try { body = await request.json(); } catch { return err('Bad JSON'); }
+      const body = await readJson(request);
+      if (!body) return err('Bad JSON');
 
       // PIN check
       if (!env.ADMIN_PIN) return err('ADMIN_PIN not configured', 500);
       if (body.adminPin !== env.ADMIN_PIN) return err('Incorrect PIN', 403);
 
       // Validate employeeId
-      const config = await getConfig();
-      if (!config) return err('Config unavailable', 503);
-      const emp = (config.employees || []).find(e => e.id === body.employeeId);
-      if (!emp) return err('Unknown employeeId', 400);
+      const { emp, error } = await loadEmployee(body);
+      if (error) return error;
 
       // QR age check — printedAt comes from the scanned QR payload
       if (body.printedAt) {
@@ -330,11 +366,12 @@ export default {
       const date = shiftDateStr();
       const rows = await getTodayRows(date);
 
-      // Same business-rule checks as employee check-in
-      const empRows = await getEmployeeOpenRows(emp.id);
-      if (empRows.length) return err(`${emp.name} is already checked in`, 409);
+      // Same business-rule checks as employee check-in. Open sessions from
+      // previous days (missing check-out) no longer block admin check-in.
+      const openToday = await getSameDayOpenRow(emp.id, date);
+      if (openToday) return err(`${emp.name} is already checked in today`, 409);
 
-      const completed = rows.filter(r => r.employeeId === emp.id && r.checkIn && r.checkOut).length;
+      const completed = completedSessionCount(rows, emp.id);
       if (completed >= MAX_CHECKINS_PER_DAY)
         return err(`${emp.name} has reached the daily limit`, 409);
 
@@ -343,53 +380,25 @@ export default {
         ? `ADMIN|QR Printed on ${body.printedAt}`
         : 'ADMIN';
 
-      const row = {
-        employeeId:        emp.id,
-        name:              emp.name,
-        designation:       emp.designation || '',
-        date,
-        checkIn:           body.checkIn || nowTimeStr(now),  // client local time preferred
-        checkInTimestamp:  now.toISOString(),
-        checkOut:          null,
-        checkOutTimestamp: null,
-        location:          body.location || '',
-        lat:               body.lat ?? null,
-        lng:               body.lng ?? null,
-        deviceId:          deviceIdVal,
-      };
-
-      const { ok: isOk, data, status } = await supa('attendance', {
-        method: 'POST', body: JSON.stringify(row),
-      });
-      if (!isOk) return err(data?.message || 'Insert failed', status);
-      return ok(Array.isArray(data) ? data[0] : data, 201);
+      const row = checkInRow(emp, date, body, now, deviceIdVal);
+      return insertRow(row);
     }
 
     // ── PATCH /attendance/admin/:id  (admin check-out) ────────────────────────
     const adminPatchMatch = path.match(/^\/attendance\/admin\/([0-9a-f-]{36})$/);
     if (request.method === 'PATCH' && adminPatchMatch) {
       const id = adminPatchMatch[1];
-      let body; try { body = await request.json(); } catch { return err('Bad JSON'); }
+      const body = await readJson(request);
+      if (!body) return err('Bad JSON');
 
       if (!env.ADMIN_PIN) return err('ADMIN_PIN not configured', 500);
       if (body.adminPin !== env.ADMIN_PIN) return err('Incorrect PIN', 403);
 
-      const { ok: isOk, data: rows } = await supa(`attendance?id=eq.${id}&select=*`);
-      if (!isOk || !rows?.length) return err('Record not found', 404);
-      const rec = rows[0];
+      const rec = await fetchRecord(id);
+      if (!rec) return err('Record not found', 404);
       if (rec.checkOut) return err('Already checked out', 409);
 
-      const now = new Date();
-      const patch = {
-        checkOut:          body.checkOut || nowTimeStr(now),  // client local time preferred
-        checkOutTimestamp: now.toISOString(),                 // server UTC, source of truth
-      };
-
-      const { ok: pOk, data: pData, status } = await supa(`attendance?id=eq.${id}`, {
-        method: 'PATCH', body: JSON.stringify(patch),
-      });
-      if (!pOk) return err(pData?.message || 'Update failed', status);
-      return ok(Array.isArray(pData) ? pData[0] : pData);
+      return checkoutRow(id, body);
     }
 
     return new Response('Not found', { status: 404, headers: cors });
