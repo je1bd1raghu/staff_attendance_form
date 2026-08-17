@@ -517,8 +517,6 @@ function updateBtns() {
       return;
     }
   }
-  btnIn.title  = '';
-  btnOut.title = '';
   // All records for this employee today, sorted oldest-first
   const { lastRec, completedSess, hasOpenRec } = empSessionState(id);
 
@@ -649,27 +647,37 @@ function warnOverlayClick(e) {
 // ── RECORD OPS ────────────────────────────────────────────────────────────────
 // Client checks below are UX fast-fails — all rules are re-enforced server-side
 // in the worker and cannot be bypassed by a malicious or modified client.
-async function appendRecord(rec) {
-  const records = await attGet().catch(() => []);
-  if (rec.deviceId || rec.deviceToken) {
+
+// Shared validation for employee self and admin check-in.
+// Returns true if check-in is allowed, false if cancelled, throws on blocking error.
+async function validateCheckIn(rec, isSelf, records) {
+  // Device proxy check (self check-in only)
+  if (isSelf && (rec.deviceId || rec.deviceToken)) {
     const openDevRec = records.find(r =>
       ((r.deviceId === rec.deviceId) || (r.deviceToken && r.deviceToken === rec.deviceToken)) &&
       r.checkIn && !r.checkOut && r.employeeId !== rec.employeeId);
     if (openDevRec) throw new Error('Another employee (' + openDevRec.name + ') is currently checked in from this device');
   }
-  const openRecs = records.filter(r => r.employeeId === rec.employeeId && r.checkIn && !r.checkOut);
-  const openToday = openRecs.find(r => r.date === rec.date);
+  // Same-day open session blocks a new check-in
+  const openToday = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && !r.checkOut);
   if (openToday) throw new Error(rec.name + ' is already checked in today — check out first');
-  // Previous days without a check-out no longer block check-in — the employee is
-  // shown a warning modal and must confirm (I Agree) before the check-in proceeds.
-  const openPrev = openRecs.filter(r => r.date !== rec.date);
+  // Previous days without a check-out — warn and require confirmation
+  const openPrev = records.filter(r => r.employeeId === rec.employeeId && r.date !== rec.date && r.checkIn && !r.checkOut);
   if (openPrev.length) {
-    const agreed = await confirmIncompleteCheckIn(openPrev.map(r => r.date).sort(), rec.name, true);
-    if (!agreed) return null;   // employee cancelled — do not check in
+    const agreed = await confirmIncompleteCheckIn(openPrev.map(r => r.date).sort(), rec.name, isSelf);
+    if (!agreed) return false;
   }
+  // Daily cap
   const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
   if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
-  return attInsert(rec);   // returns inserted row with server-assigned `id`
+  return true;
+}
+
+async function appendRecord(rec) {
+  const records = await attGet().catch(() => []);
+  const valid = await validateCheckIn(rec, true, records);
+  if (!valid) return null;
+  return attInsert(rec);
 }
 
 // ── RENDER (employee view) ────────────────────────────────────────────────────
@@ -701,7 +709,6 @@ function renderRecords() {
   const bar = document.getElementById('recFilter');
   if (bar) bar.style.display = todayRecs.length ? '' : 'none';
   updateRecFilterCounts();
-  if (!todayRecs.length) { renderRecordList(el, []); return; }
   const list = filteredRecords();
   if (!list.length) { el.innerHTML = '<div class="empty-state"><div class="e-icon">🔍</div>No matching records</div>'; return; }
   renderRecordList(el, list);
@@ -949,46 +956,37 @@ function renderPinDots(error) {
   }
 }
 
-function submitPin() {
+function _pinError(msg) {
+  renderPinDots(true);
+  setTimeout(() => { pinBuffer = ''; renderPinDots(); document.getElementById('pinSubmit').disabled = true; }, 700);
+  showToast(msg, 'error');
+}
+
+async function submitPin() {
   const pin = pinBuffer;
-  // Disable keypad while verifying
   document.getElementById('pinKeypad').style.pointerEvents = 'none';
   document.getElementById('pinSubmit').disabled = true;
   document.getElementById('pinSubmit').textContent = '…';
-  fetch(WORKER_URL + 'verify-pin', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ adminPin: pin })
-  })
-  .then(r => r.json().then(data => ({ ok: r.ok, data })))
-  .then(({ ok, data }) => {
-    document.getElementById('pinKeypad').style.pointerEvents = '';
-    document.getElementById('pinSubmit').textContent = '✓ Confirm PIN';
-    if (ok) {
-      verifiedPin = pin;
-      closePinOverlay();
-      if (pinPurpose === 'qr') {
-        startAdminTimer();
-        _openQrPrintDirect();
-      } else if (pinPurpose === 'download') {
-        startAdminTimer();
-        _openDownloadSheetDirect();
-      } else {
-        enterAdmin();   // enterAdmin() calls startAdminTimer() itself
-      }
-    } else {
-      renderPinDots(true);
-      setTimeout(() => { pinBuffer = ''; renderPinDots(); document.getElementById('pinSubmit').disabled = true; }, 700);
-      showToast(data.error || 'Incorrect PIN — the admin PIN is case-sensitive, please try again', 'error');
+  try {
+    await _sendJson(WORKER_URL + 'verify-pin', 'POST', { adminPin: pin });
+    verifiedPin = pin;
+    closePinOverlay();
+    if (pinPurpose === 'qr' || pinPurpose === 'download') {
+      startAdminTimer();
     }
-  })
-  .catch(() => {
+    if (pinPurpose === 'qr') {
+      openQrPrint();
+    } else if (pinPurpose === 'download') {
+      openDownloadSheet();
+    } else {
+      enterAdmin();
+    }
+  } catch (e) {
+    _pinError(e.message || 'Incorrect PIN — the admin PIN is case-sensitive, please try again');
+  } finally {
     document.getElementById('pinKeypad').style.pointerEvents = '';
     document.getElementById('pinSubmit').textContent = '✓ Confirm PIN';
-    renderPinDots(true);
-    setTimeout(() => { pinBuffer = ''; renderPinDots(); document.getElementById('pinSubmit').disabled = true; }, 700);
-    showToast('Network error — could not verify PIN, please check your connection and try again', 'error');
-  });
+  }
 }
 
 // ── ENTER / EXIT ADMIN ────────────────────────────────────────────────────────
@@ -1182,7 +1180,6 @@ async function toggleCamera() {
   if (scannerStream) {
     // Camera is ON → turn it off
     stopScanner();
-    resetCameraToggleBtn();
   } else {
     // Camera is OFF → turn it on
     const btn  = document.getElementById('btnCameraToggle');
@@ -1217,11 +1214,7 @@ async function startScanner() {
 function stopScanner() {
   if (scannerAnimFrame) { cancelAnimationFrame(scannerAnimFrame); scannerAnimFrame = null; }
   if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
-  // Reset button label (safe to call even on exitAdmin)
-  const btn = document.getElementById('btnCameraToggle');
-  if (btn) { btn.textContent = '📷 Start Camera'; btn.classList.remove('active'); }
-  const wrap = document.getElementById('qrScannerWrap');
-  if (wrap) wrap.classList.remove('visible');
+  resetCameraToggleBtn();
 }
 
 function tickScanner() {
@@ -1329,17 +1322,8 @@ async function adminDoIn() {
   let didCheckIn = false;
   try {
     const records = await attGet().catch(() => []);
-    // Check there is no currently open record (not checked out) for this employee today
-    const openRec = records.find(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && !r.checkOut);
-    if (openRec) throw new Error(rec.name + ' is already checked in — check out first');
-    // Previous days without a check-out no longer block admin check-in — warn and confirm
-    const openPrev = records.filter(r => r.employeeId === rec.employeeId && r.date !== rec.date && r.checkIn && !r.checkOut);
-    if (openPrev.length) {
-      const agreed = await confirmIncompleteCheckIn(openPrev.map(r => r.date).sort(), rec.name, false);
-      if (!agreed) { showToast('Check-in cancelled', 'warning'); return; }
-    }
-    const completedToday = records.filter(r => r.employeeId === rec.employeeId && r.date === rec.date && r.checkIn && r.checkOut).length;
-    if (completedToday >= MAX_CHECKINS_PER_DAY) throw new Error(rec.name + ' has reached the maximum of ' + MAX_CHECKINS_PER_DAY + ' check-ins for today');
+    const valid = await validateCheckIn(rec, false, records);
+    if (!valid) { showToast('Check-in cancelled', 'warning'); return; }
     const inserted = await attAdminInsert({ ...rec, printedAt: scannedPrintedAt });
     todayRecs.push({ ...rec, id: inserted.id });
     renderRecords(); renderAdminRecords();
@@ -1388,12 +1372,8 @@ async function adminDoOut() {
 }
 
 // ── DOWNLOAD SHEET ────────────────────────────────────────────────────────────
-function openDownloadSheet() {
+async function openDownloadSheet() {
   if (!isAdmin && !verifiedPin) { openPinOverlay('download'); return; }
-  _openDownloadSheetDirect();
-}
-
-async function _openDownloadSheetDirect() {
   await populateSummaryMonths();
   document.getElementById('downloadOverlay').classList.add('open');
 }
@@ -1622,10 +1602,6 @@ async function openQrPrint() {
     openPinOverlay('qr');
     return;
   }
-  await _openQrPrintDirect();
-}
-
-async function _openQrPrintDirect() {
   await buildUuidLookup();
   _selectedEmpIds.clear();
   document.getElementById('qrPrintOverlay').classList.add('open');
