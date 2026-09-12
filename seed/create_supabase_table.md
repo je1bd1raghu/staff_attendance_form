@@ -29,6 +29,21 @@ create policy "anon read attendance" on attendance for select using (true);
 create policy "anon read config"     on config     for select using (true);
 ```
 
+`devices` (device lineage — see `seed/migrations/002_device_history.sql`) is created
+and maintained by the worker; it has RLS enabled but **no anon policy**, so only the
+worker's service_role key can touch it:
+
+```sql
+create table devices (
+  device_token   text primary key,
+  fingerprints   text[] not null default '{}',
+  linked_tokens  text[] not null default '{}',
+  first_seen     timestamptz not null default now(),
+  last_seen      timestamptz not null default now()
+);
+alter table devices enable row level security;
+```
+
 **Step 1b — Add the durable device pass column (already-applied fresh installs skip this):**
 
 ```sql

@@ -16,6 +16,9 @@
 //  ✓ deviceId and deviceToken always overwritten server-side — can't spoof a device
 //  ✓ duplicate check-in blocked server-side — can't double-check-in
 //  ✓ daily cap enforced server-side — can't exceed MAX_CHECKINS_PER_DAY
+//  ✓ device lineage (`devices` table) — ownership survives browser updates and
+//    wiped site storage, as long as ONE credential (token or fingerprint) is
+//    still recognisable; a brand-new device falls back to admin recovery
 //  ✓ cross-device proxy blocked server-side — one device can't check in
 //    two different employees simultaneously (matched by token OR fingerprint)
 //  ✓ PATCH /attendance/:id verifies the record belongs to the requesting
@@ -27,6 +30,7 @@
 //
 // Routes:
 //   GET  /config                  → proxy config JSON from Supabase
+//   POST /config                  → admin upsert of roster/locations (PIN required)
 //   GET  /attendance              → fetch all attendance rows
 //   POST /verify-pin              → 200 OK | 403 Forbidden
 //   POST /attendance              → employee self check-in (server validates)
@@ -41,6 +45,12 @@ const QR_MAX_AGE_MS        = 24 * 60 * 60 * 1000;  // QR cards valid for 24 h
 // Cloudflare, but the shift date/cutoff and displayed times are local wall-clock.
 // IST = UTC+5:30 = 330 min. Adjust if the site moves timezone.
 const TZ_OFFSET_MIN        = 330;
+
+// Device lineage bounds (see recordDeviceIdentity) — how many historical
+// fingerprints and linked tokens a device keeps so check-out ownership can
+// survive a browser update or a wiped site-data storage.
+const MAX_FP_HISTORY       = 3;
+const MAX_LINKED_TOKENS    = 5;
 
 export default {
   async fetch(request, env) {
@@ -142,6 +152,106 @@ export default {
         `attendance?or=(${or.join(',')})&checkOut=is.null&select=id,employeeId,deviceId,deviceToken,checkIn,checkOut,date`
       );
       return isOk && Array.isArray(data) ? data : [];
+    }
+
+    // ── DEVICE LINEAGE ─────────────────────────────────────────────────────────
+    // The `devices` table (see seed/migrations/002_device_history.sql) keeps one
+    // row per durable deviceToken with every fingerprint (`fingerprints`) and
+    // token (`linked_tokens`) that device has presented. Every self check-in and
+    // check-out upserts + relinks identity BEFORE ownership is verified, so a
+    // browser update or wiped storage can re-establish its lineage and then pass
+    // the ownership check — the client only needs ONE recognisable credential.
+    //
+    // NOTE: lineage is only used for check-out ownership. The cross-device proxy
+    // rule still matches the exact token/fingerprint so "one physical device,
+    // one open employee simultaneously" semantics are unchanged.
+
+    function cleanTokenList(list, max) {
+      const seen = new Set(), out = [];
+      for (const v of list || []) {
+        if (!v || seen.has(v)) continue;
+        seen.add(v);
+        out.push(v);
+        if (out.length >= max) break;
+      }
+      return out;
+    }
+
+    async function getDeviceRow(deviceToken) {
+      if (!deviceToken) return null;
+      const { ok: isOk, data } = await supa(`devices?device_token=eq.${deviceToken}&select=*`);
+      return isOk && Array.isArray(data) && data[0] ? data[0] : null;
+    }
+
+    // Upsert this device's identity and merge any lineage that shares its
+    // current fingerprint or token. Best-effort: never fails a request.
+    async function recordDeviceIdentity(deviceToken, deviceId) {
+      if (!deviceToken || !deviceId || deviceId.startsWith('ADMIN')) return;
+      const now = new Date().toISOString();
+      const self = await getDeviceRow(deviceToken);
+
+      const { ok: isOk, data } = await supa(
+        `devices?or=(fingerprints=cs.{${deviceId}},linked_tokens=cs.{${deviceToken}})&select=*`
+      );
+      const matches = (isOk && Array.isArray(data))
+        ? data.filter(r => r.device_token !== deviceToken) : [];
+
+      const mergedFp  = cleanTokenList([deviceId,
+        ...(self ? self.fingerprints : []),
+        ...matches.map(m => m.fingerprints || [])].flat(), MAX_FP_HISTORY);
+      const mergedTok = cleanTokenList([deviceToken,
+        ...(self ? self.linked_tokens : []),
+        ...matches.map(m => m.linked_tokens || [])].flat(), MAX_LINKED_TOKENS);
+
+      // Mirror the merged lineage onto every matched row so ownership resolves
+      // from whichever token the device presents later.
+      await Promise.all(matches.map(async (m) => {
+        await supa(`devices?device_token=eq.${m.device_token}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            fingerprints:  cleanTokenList([...(m.fingerprints || []), ...mergedFp], MAX_FP_HISTORY),
+            linked_tokens: cleanTokenList([...(m.linked_tokens || []), deviceToken,
+              ...(self ? self.linked_tokens : [])], MAX_LINKED_TOKENS),
+            last_seen: now,
+          }),
+        });
+      }));
+
+      if (self) {
+        await supa(`devices?device_token=eq.${deviceToken}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ fingerprints: mergedFp, linked_tokens: mergedTok, last_seen: now }),
+        });
+      } else {
+        await supa('devices', {
+          method: 'POST',
+          body: JSON.stringify({
+            device_token:  deviceToken,
+            fingerprints:  mergedFp,
+            linked_tokens: mergedTok,
+            first_seen:    now,
+            last_seen:     now,
+          }),
+        });
+      }
+    }
+
+    // Check-out ownership: the requester must match the record's token or
+    // fingerprint exactly, OR fall somewhere in that device's lineage (a linked
+    // token or a previously-seen fingerprint on either side of the link).
+    async function ownsRecord(rec, deviceId, deviceToken) {
+      if (rec.deviceToken && deviceToken && rec.deviceToken === deviceToken) return true;
+      if (rec.deviceId && deviceId && rec.deviceId === deviceId) return true;
+      if (!rec.deviceToken) return false;
+
+      const recRow = await getDeviceRow(rec.deviceToken);
+      if (!recRow) return false;
+      if (deviceToken && (recRow.linked_tokens || []).includes(deviceToken)) return true;
+      if (deviceId && (recRow.fingerprints || []).includes(deviceId)) return true;
+
+      const tokRow = deviceToken ? await getDeviceRow(deviceToken) : null;
+      if (tokRow && (tokRow.linked_tokens || []).includes(rec.deviceToken)) return true;
+      return false;
     }
 
     // Load all OPEN records for a given employee — across ALL devices and dates.
@@ -255,6 +365,28 @@ export default {
       return ok(cfg);
     }
 
+    // ── POST /config  (admin roster editor) ──────────────────────────────────
+    // The admin UI adds/edits/deletes employees and locations; the whole config
+    // is upserted as one JSON blob. PIN-guarded like every other admin write —
+    // RLS on `config` allows anon SELECT only, so this worker is the sole path.
+    if (request.method === 'POST' && path.endsWith('/config')) {
+      const body = await readJson(request);
+      if (!body) return err('Bad JSON');
+      if (!env.ADMIN_PIN) return err('ADMIN_PIN not configured', 500);
+      if (body.adminPin !== env.ADMIN_PIN) return err('Incorrect PIN', 403);
+      const data = body.data;
+      if (!data || typeof data !== 'object' || !Array.isArray(data.employees) ||
+          !Array.isArray(data.locations))
+        return err('Invalid config payload', 400);
+      const { ok: isOk, data: resData, status } = await supa('config', {
+        method: 'POST',
+        headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify({ id: 1, data }),
+      });
+      if (!isOk) return err(resData?.message || 'Config save failed', status);
+      return ok(Array.isArray(resData) ? resData[0] : resData);
+    }
+
     // ── GET /attendance ───────────────────────────────────────────────────────
     if (request.method === 'GET' && path.endsWith('/attendance')) {
       const { ok: isOk, data } = await supa(
@@ -306,7 +438,11 @@ export default {
       if (completed >= MAX_CHECKINS_PER_DAY)
         return err(`${emp.name} has reached the daily limit of ${MAX_CHECKINS_PER_DAY} sessions`, 409);
 
-      // 7. Build the row — overwrite date/deviceId server-side, but keep client's
+      // 7. Record this device's identity (lineage) so future check-outs keep
+      //    working after a browser update or wiped site storage.
+      await recordDeviceIdentity(deviceToken, deviceId);
+
+      // 8. Build the row — overwrite date/deviceId server-side, but keep client's
       // local-time strings for checkIn/checkOut so they display correctly.
       // checkInTimestamp is the authoritative ISO timestamp (always UTC).
       const now = new Date();
@@ -331,14 +467,15 @@ export default {
       // Fetch the target row and verify ownership by device identity
       const rec = await fetchRecord(id);
       if (!rec) return err('Record not found', 404);
-
-      // Ownership: the checking-out browser must hold the durable token that
-      // checked in, or (fallback) the same fingerprint. Either match is enough,
-      // so a browser update that shifts the fingerprint can't lock a worker out.
-      const ownsByToken = !!rec.deviceToken && !!deviceToken && rec.deviceToken === deviceToken;
-      const ownsByFp    = !!rec.deviceId && !!deviceId && rec.deviceId === deviceId;
-      if (!ownsByToken && !ownsByFp) return err('You cannot check out another person', 403);
       if (rec.checkOut) return err('Already checked out', 409);
+
+      // Record/link this device's credentials BEFORE verifying ownership so a
+      // browser update or wiped storage can re-establish its lineage and match.
+      await recordDeviceIdentity(deviceToken, deviceId);
+
+      // Ownership: exact token/fingerprint, or anything in the device lineage.
+      if (!(await ownsRecord(rec, deviceId, deviceToken)))
+        return err('You cannot check out another person', 403);
 
       return checkoutRow(id, body);
     }

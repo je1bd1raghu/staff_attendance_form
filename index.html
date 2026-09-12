@@ -1,22 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bn">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Staff Attendance</title>
+<title>স্টাফ হাজিরা · ডিউটি গেট</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Baloo+Da+2:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <!-- LOADING SCREEN -->
 <div class="loading-screen" id="loadingScreen">
-  <div class="l-eyebrow">Duty Gate</div>
+  <div class="l-eyebrow">ডিউটি গেট</div>
   <div class="l-icon">🚪</div>
-  <div class="l-text" id="loadingText">Starting up…</div>
+  <div class="l-text" id="loadingText">চালু হচ্ছে…</div>
   <div class="bar-track"><div class="bar-fill" id="loadingBar"></div></div>
 </div>
 
@@ -30,18 +29,18 @@
         <span class="gl" style="--c:#3AA757;--i:2"></span>
         <span class="gl" style="--c:#4C8BF5;--i:3"></span>
       </div>
-      <span class="gate-stamp">Chrome<br>Required</span>
+      <span class="gate-stamp">Chrome<br>প্রয়োজন</span>
     </div>
     <div class="gate-card-body">
-      <p class="gate-kicker">Duty Gate · Device Pass</p>
-      <h1 class="gate-headline" id="gateHeadline">Open this page in Chrome</h1>
-      <p class="gate-sub">Check-in and check-out are verified in your browser. Opening the same page in Chrome keeps your device pass stable for the whole shift.</p>
+      <p class="gate-kicker">ডিউটি গেট · ডিভাইস পাস</p>
+      <h1 class="gate-headline" id="gateHeadline">Chrome-এ এই পেজ খুলুন</h1>
+      <p class="gate-sub">চেক-ইন এবং চেক-আউট আপনার ব্রাউজারে যাচাই করা হয়। একই পেজ Chrome-এ খুললে পুরো শিফট জুড়ে আপনার ডিভাইস পাস স্থিতিশীল থাকে।</p>
       <div class="gate-actions">
-        <a class="btn-chrome" id="openChromeBtn" href="#" rel="noopener">Open in Chrome</a>
-        <button class="btn-copy" id="copyLinkBtn" type="button">Copy link</button>
+        <a class="btn-chrome" id="openChromeBtn" href="#" rel="noopener">Chrome-এ খুলুন</a>
+        <button class="btn-copy" id="copyLinkBtn" type="button">লিংক কপি</button>
       </div>
-      <p class="gate-help" id="gatePhoneNote">On this phone? Tap “Open in Chrome” — the page reopens in Chrome and picks up where you left off.</p>
-      <p class="gate-help" id="gateDesktopNote" style="display:none">On this computer? Install Chrome, then reopen this page in it.</p>
+      <p class="gate-help" id="gatePhoneNote">এই ফোনে? "Chrome-এ খুলুন"-এ চাপুন — পেজ Chrome-এ খুলে যেখানে থেমেছিলেন সেখান থেকে শুরু হবে।</p>
+      <p class="gate-help" id="gateDesktopNote" style="display:none">এই কম্পিউটারে? চালে Chrome ইন্সটল করে তারপর এই পেজ Chrome-এ খুলুন।</p>
     </div>
   </div>
 </div>
@@ -52,10 +51,10 @@
 <!-- ADMIN PIN OVERLAY -->
 <div class="pin-overlay" id="pinOverlay">
   <div class="pin-box">
-    <button class="pin-close" onclick="closePinOverlay()" title="Close">✕</button>
+    <button class="pin-close" onclick="closePinOverlay()" title="বন্ধ করুন">✕</button>
     <div class="pin-icon" id="pinIcon">🔐</div>
-    <div class="pin-title" id="pinTitle">Admin Access</div>
-    <div class="pin-sub" id="pinSub">Enter your PIN to continue</div>
+    <div class="pin-title" id="pinTitle">অ্যাডমিন অ্যাক্সেস</div>
+    <div class="pin-sub" id="pinSub">চালিয়ে যেতে আপনার PIN দিন</div>
     <div class="pin-dots" id="pinDots"></div>
     <div class="pin-keypad" id="pinKeypad">
       <button class="pin-key" onclick="pinKey('1')">1</button>
@@ -71,7 +70,7 @@
       <button class="pin-key" onclick="pinKey('0')">0</button>
       <button class="pin-key del" onclick="pinDel()">⌫</button>
     </div>
-    <button class="btn-save" id="pinSubmit" onclick="submitPin()" disabled style="margin-top:16px;border-radius:14px;padding:16px;font-size:18px;background:var(--admin)">✓ Confirm PIN</button>
+    <button class="btn-save" id="pinSubmit" onclick="submitPin()" disabled style="margin-top:16px;border-radius:14px;padding:16px;font-size:18px;background:var(--admin)">✓ PIN নিশ্চিত করুন</button>
   </div>
 </div>
 
@@ -79,20 +78,20 @@
 <div class="qr-print-overlay" id="qrPrintOverlay">
   <div class="qr-print-header">
     <div style="display:flex;align-items:center;gap:10px;">
-      <label class="sel-all-wrap" title="Select all">
+      <label class="sel-all-wrap" title="সব নির্বাচন">
         <input type="checkbox" id="chkSelectAll" onchange="toggleSelectAll(this.checked)">
         <span class="sel-all-box"></span>
       </label>
-      <h2>🪪 ID Cards</h2>
+      <h2>🪪 আইডি কার্ড</h2>
       <span class="sel-count-badge" id="selCountBadge" style="display:none"></span>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
-      <button id="btnPrintSelected" onclick="printSelectedIdCards()" style="display:none">🖨️ Print Selected</button>
-      <button onclick="closeQrPrint()">✕ Close</button>
+      <button id="btnPrintSelected" onclick="printSelectedIdCards()" style="display:none">🖨️ নির্বাচিত প্রিন্ট</button>
+      <button onclick="closeQrPrint()">✕ বন্ধ করুন</button>
     </div>
   </div>
   <div class="qr-print-body">
-    <input type="text" class="qr-search-bar" id="qrSearchInput" placeholder="🔍  Search employee…" oninput="filterQrGrid()">
+    <input type="text" class="qr-search-bar" id="qrSearchInput" placeholder="🔍  কর্মচারী খুঁজুন…" oninput="filterQrGrid()">
     <div class="emp-list" id="qrGrid"></div>
   </div>
 </div>
@@ -101,7 +100,7 @@
 <div class="id-card-overlay" id="idCardOverlay" onclick="handleIdCardOverlayClick(event)">
   <div class="id-card" id="idCardBox">
     <div class="id-card-header">
-      <div class="id-card-title">Employee ID Card</div>
+      <div class="id-card-title">এমপ্লয়ি আইডি কার্ড</div>
       <button class="id-card-close" onclick="closeIdCard()">✕</button>
     </div>
     <div class="id-card-body">
@@ -119,17 +118,17 @@
     </div>
     <!-- Slot picker: shown when Print is clicked -->
     <div class="slot-picker" id="slotPicker">
-      <div class="slot-picker-label">Choose slot on A4 sheet</div>
+      <div class="slot-picker-label">A4 শিটের স্লট নির্বাচন করুন</div>
       <div class="slot-grid">
-        <div class="slot-cell" data-slot="0" onclick="selectSlot(0)" title="Top-left">TL</div>
-        <div class="slot-cell" data-slot="1" onclick="selectSlot(1)" title="Top-right">TR</div>
-        <div class="slot-cell" data-slot="2" onclick="selectSlot(2)" title="Bottom-left">BL</div>
-        <div class="slot-cell" data-slot="3" onclick="selectSlot(3)" title="Bottom-right">BR</div>
+        <div class="slot-cell" data-slot="0" onclick="selectSlot(0)" title="উপর-বাম">TL</div>
+        <div class="slot-cell" data-slot="1" onclick="selectSlot(1)" title="উপর-ডান">TR</div>
+        <div class="slot-cell" data-slot="2" onclick="selectSlot(2)" title="নীচে-বাম">BL</div>
+        <div class="slot-cell" data-slot="3" onclick="selectSlot(3)" title="নীচে-ডান">BR</div>
       </div>
     </div>
     <div class="id-card-footer">
-      <button class="btn-id-print" id="btnIdPrint" onclick="toggleSlotPicker()">🖨️ Print ID Card</button>
-      <button class="btn-id-close"  onclick="closeIdCard()">✕ Close</button>
+      <button class="btn-id-print" id="btnIdPrint" onclick="toggleSlotPicker()">🖨️ আইডি কার্ড প্রিন্ট</button>
+      <button class="btn-id-close"  onclick="closeIdCard()">✕ বন্ধ</button>
     </div>
   </div>
 </div>
@@ -138,9 +137,9 @@
 <div class="gate-overlay" id="gateOverlay" onclick="handleGateOverlayClick(event)">
   <div class="gate-modal" id="gateModal" role="dialog" aria-modal="true" aria-labelledby="gateName">
     <div class="gate-header">
-      <div class="gate-eyebrow">Gate Check</div>
-      <div class="gate-title">Attendance Pass</div>
-      <button class="gate-close" onclick="closeGateModal()" title="Close">✕</button>
+      <div class="gate-eyebrow">গেট চেক</div>
+      <div class="gate-title">হাজিরার পাস</div>
+      <button class="gate-close" onclick="closeGateModal()" title="বন্ধ">✕</button>
     </div>
     <div class="gate-body">
       <div class="gate-person">
@@ -166,27 +165,83 @@
 <!-- INCOMPLETE CHECK-OUT WARNING -->
 <div class="warn-overlay" id="warnOverlay" role="alertdialog" aria-modal="true" aria-labelledby="warnTitle" onclick="warnOverlayClick(event)">
   <div class="warn-box">
-    <button class="warn-close" onclick="warnDismiss()" title="Cancel">✕</button>
+    <button class="warn-close" onclick="warnDismiss()" title="বাতিল">✕</button>
     <div class="warn-icon">⚠️</div>
-    <div class="warn-title" id="warnTitle">Incomplete Check-Out</div>
+    <div class="warn-title" id="warnTitle">অসম্পূর্ণ চেক-আউট</div>
     <div class="warn-sub" id="warnSub"></div>
     <div class="warn-days" id="warnDays"></div>
     <div class="warn-text" id="warnText"></div>
     <div class="warn-actions">
-      <button class="warn-btn warn-cancel" onclick="warnDismiss()">Cancel</button>
-      <button class="warn-btn warn-agree" onclick="warnAgree()">I Agree</button>
+      <button class="warn-btn warn-cancel" onclick="warnDismiss()">বাতিল</button>
+      <button class="warn-btn warn-agree" onclick="warnAgree()">সম্মত, চালিয়ে যান</button>
     </div>
+  </div>
+</div>
+
+<!-- CHECKOUT-LOCKED RECOVERY -->
+<div class="warn-overlay" id="checkoutLockedOverlay" role="alertdialog" aria-modal="true" aria-labelledby="clTitle" onclick="handleCheckoutLockedClick(event)">
+  <div class="warn-box">
+    <button class="warn-close" onclick="closeCheckoutLocked()" title="বন্ধ">✕</button>
+    <div class="warn-icon">🔐</div>
+    <div class="warn-title" id="clTitle">চেক-আউট লক হয়ে আছে</div>
+    <div class="warn-sub">এই ব্রাউজারটি আর সেই ডিভাইস নয়, যা দিয়ে চেক-ইন হয়েছিল।</div>
+    <div class="warn-text">রেকর্ড সঠিক রাখতে চেক-আউট শুধু সেই ডিভাইস থেকেই হয়, যেটি দিয়ে কর্মচারী চেক-ইন করেছিলেন। ব্রাউজারের ডেটা পরিষ্কার করেছেন বা ডিভাইস বদলেছেন? তাহলে অ্যাডমিনের কাছে আপনার আইডি কার্ড দেখান — অ্যাডমিন ভিউ থেকে স্ক্যান করে সেশন বন্ধ করে দিতে পারেন।</div>
+    <div class="warn-actions">
+      <button class="warn-btn warn-agree" onclick="closeCheckoutLocked()">বুঝেছি</button>
+    </div>
+  </div>
+</div>
+
+<!-- DEVICE SWITCH CONFIRM -->
+<div class="warn-overlay" id="deviceSwitchOverlay" role="alertdialog" aria-modal="true" aria-labelledby="dsTitle" onclick="handleDeviceSwitchClick(event)">
+  <div class="warn-box">
+    <button class="warn-close" onclick="closeDeviceSwitch()" title="বাতিল">✕</button>
+    <div class="warn-icon">🔄</div>
+    <div class="warn-title" id="dsTitle">ডিভাইস আইডি বদলেছে</div>
+    <div class="warn-sub" id="dsOldNew"></div>
+    <div class="warn-text">এই ডিভাইসের আইডি আজকের চেক-ইনের সময়কার আইডি থেকে আলাদা। চেক-আউট এখনও সম্ভব, তবে মিল বজায় রাখতে নতুন আইডিটিই এই ডিভাইসের আইডি হিসেবে নিশ্চিত করুন।</div>
+    <div class="warn-actions">
+      <button class="warn-btn warn-cancel" onclick="closeDeviceSwitch()">পরে</button>
+      <button class="warn-btn warn-agree primary" id="dsConfirmBtn" onclick="confirmDeviceSwitch()">নতুন আইডি ব্যবহার করুন</button>
+    </div>
+  </div>
+</div>
+
+<!-- GENERIC CONFIRM -->
+<div class="warn-overlay" id="confirmOverlay" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" onclick="confirmOverlayClick(event)">
+  <div class="warn-box">
+    <button class="warn-close" onclick="confirmCb(false)" title="বাতিল">✕</button>
+    <div class="warn-icon" id="confirmIcon">❓</div>
+    <div class="warn-title" id="confirmTitle">নিশ্চিত করুন</div>
+    <div class="warn-sub" id="confirmSub"></div>
+    <div class="warn-text" id="confirmText"></div>
+    <div class="warn-actions">
+      <button class="warn-btn warn-cancel" id="confirmCancelBtn" onclick="confirmCb(false)">বাতিল</button>
+      <button class="warn-btn warn-agree" id="confirmOkBtn" onclick="confirmCb(true)">নিশ্চিত</button>
+    </div>
+  </div>
+</div>
+
+<!-- DATA FORM (add/edit employee or location) -->
+<div class="overlay" id="dataFormOverlay" onclick="dataFormOverlayClick(event)">
+  <div class="modal" id="dataFormModal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div class="modal-title" id="dataFormTitle">নতুন এন্ট্রি</div>
+      <button class="pin-close" style="position:static;margin-left:8px;" onclick="closeDataForm()" title="বন্ধ">✕</button>
+    </div>
+    <div id="dataFormBody"></div>
   </div>
 </div>
 
 <!-- HEADER -->
 <div class="header" id="mainHeader">
-  <p id="headerDate">Loading…</p>
-  <h1>Staff Attendance</h1>
+  <p id="headerDate">লোড হচ্ছে…</p>
+  <h1>স্টাফ হাজিরা</h1>
   <div class="header-right">
-    <button class="icon-btn" id="dlBtn" title="Download Records" onclick="openDownloadSheet()">📥</button>
-    <button class="icon-btn" id="qrPrintBtn" title="Print QR Codes" onclick="openQrPrint()">🖨️</button>
-    <button class="icon-btn" id="adminBtn" title="Admin mode" onclick="handleAdminBtn()">🛡️</button>
+    <button class="icon-btn" id="dlBtn" title="রেকর্ড ডাউনলোড" onclick="openDownloadSheet()">📥</button>
+    <button class="icon-btn" id="qrPrintBtn" title="QR কোড প্রিন্ট" onclick="openQrPrint()">🖨️</button>
+    <button class="icon-btn" id="adminBtn" title="অ্যাডমিন মোড" onclick="handleAdminBtn()">🛡️</button>
   </div>
 </div>
 
@@ -195,38 +250,38 @@
   <div class="card">
     <div class="datetime-bar">
       <div class="dt-block">
-        <div class="dt-label">Date</div>
+        <div class="dt-label">তারিখ</div>
         <div class="dt-val" id="dispDate">—</div>
       </div>
       <div class="dt-divider"></div>
       <div class="dt-block">
-        <div class="dt-label">Time</div>
+        <div class="dt-label">সময়</div>
         <div class="dt-val" id="dispTime">—</div>
       </div>
       <div class="dt-divider"></div>
       <div class="dt-block">
-        <div class="dt-label">Day</div>
+        <div class="dt-label">দিন</div>
         <div class="dt-val" id="dispDay">—</div>
       </div>
     </div>
 
     <!-- ESTABLISHMENT SELECTOR -->
-    <div class="field-label" id="estLabel">Select Establishment</div>
+    <div class="field-label" id="estLabel">প্রতিষ্ঠান নির্বাচন করুন</div>
     <div class="est-scroller" id="estScroller"></div>
 
     <!-- EMPLOYEE SEARCH COMBOBOX -->
     <div class="name-block locked" id="nameBlock">
-      <div class="field-label">Select Your Name</div>
+      <div class="field-label">আপনার নাম নির্বাচন করুন</div>
       <div class="combo-wrapper" id="comboWrapper">
         <div class="combo-input-row">
           <span class="combo-search-icon">&#128269;</span>
-          <input type="text" id="empSearch" class="combo-input" placeholder="Type to search your name…"
+          <input type="text" id="empSearch" class="combo-input" placeholder="নাম লিখে খুঁজুন…"
                  autocomplete="off" disabled oninput="filterEmployees()" onfocus="openDropdown()" />
           <button class="combo-clear" id="comboClear" onclick="clearEmployee()" style="display:none">&#x2715;</button>
         </div>
         <div class="combo-dropdown" id="comboDropdown" style="display:none"></div>
       </div>
-      <div class="name-lock-hint" id="nameLockHint">Pick your establishment above to continue</div>
+      <div class="name-lock-hint" id="nameLockHint">চালিয়ে যেতে উপরে প্রতিষ্ঠান নির্বাচন করুন</div>
       <select id="empSelect" style="display:none"></select>
     </div>
 
@@ -234,43 +289,46 @@
     <div class="loc-status idle" id="locStatus">
       <div class="loc-icon" id="locIcon">📍</div>
       <div>
-        <div class="loc-title" id="locTitle">Location not checked</div>
-        <div class="loc-sub"  id="locSub">Select your name to begin</div>
+        <div class="loc-title" id="locTitle">লোকেশন যাচাই করা হয়নি</div>
+        <div class="loc-sub"  id="locSub">শুরু করতে আপনার নাম নির্বাচন করুন</div>
       </div>
     </div>
+
+    <!-- DEVICE ID LINE -->
+    <div class="dev-box" id="devBox"></div>
 
     <!-- CHECK IN / OUT BUTTONS -->
     <div class="btn-row">
       <button class="btn-main btn-in"  id="btnIn"  onclick="doCheckIn()"  disabled>
-        <span class="btn-icon">✅</span>Check IN
+        <span class="btn-icon">✅</span>চেক-ইন
       </button>
       <button class="btn-main btn-out" id="btnOut" onclick="doCheckOut()" disabled>
-        <span class="btn-icon">🚪</span>Check OUT
+        <span class="btn-icon">🚪</span>চেক-আউট
       </button>
     </div>
   </div>
 
   <!-- TODAY'S RECORDS -->
   <div class="card">
-    <div class="section-title">Today's Attendance</div>
+    <div class="section-title">আজকের হাজিরা</div>
 
     <!-- FILTER BAR -->
     <div class="rec-filter" id="recFilter" style="display:none">
       <div class="rec-search-row">
         <span class="rec-search-icon">&#128269;</span>
-        <input type="text" id="recSearch" class="rec-search" placeholder="Search name, role or location…"
+        <input type="text" id="recSearch" class="rec-search" placeholder="নাম, পদবি বা স্থান খুঁজুন…"
                autocomplete="off" oninput="filterRecords()">
         <button class="rec-clear" id="recClear" onclick="clearRecSearch()" style="display:none">&#x2715;</button>
       </div>
       <div class="rec-chips" id="recChips">
-        <button class="rec-chip active" data-status="all"    onclick="setRecFilter('all')">All <span class="rec-chip-n" id="recN-all">0</span></button>
-        <button class="rec-chip"        data-status="inside" onclick="setRecFilter('inside')">Inside <span class="rec-chip-n" id="recN-inside">0</span></button>
-        <button class="rec-chip"        data-status="left"   onclick="setRecFilter('left')">Left <span class="rec-chip-n" id="recN-left">0</span></button>
+        <button class="rec-chip active" data-status="all"    onclick="setRecFilter('all')">সব <span class="rec-chip-n" id="recN-all">0</span></button>
+        <button class="rec-chip"        data-status="inside" onclick="setRecFilter('inside')">প্রাঙ্গণে <span class="rec-chip-n" id="recN-inside">0</span></button>
+        <button class="rec-chip"        data-status="left"   onclick="setRecFilter('left')">বেরিয়েছেন <span class="rec-chip-n" id="recN-left">0</span></button>
       </div>
     </div>
 
     <div id="recordsList">
-      <div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>
+      <div class="empty-state"><div class="e-icon">🗒️</div>আজ এখনও কোনো রেকর্ড নেই</div>
     </div>
   </div>
   <div style="height:24px"></div>
@@ -283,27 +341,27 @@
     <div class="admin-banner">
       <div class="admin-banner-icon">🛡️</div>
       <div>
-        <div class="admin-banner-title">Admin Mode Active</div>
-        <div class="admin-banner-sub">Scan employee QR code · you must be physically present at the selected location</div>
+        <div class="admin-banner-title">অ্যাডমিন মোড সক্রিয়</div>
+        <div class="admin-banner-sub">কর্মচারীর QR কোড স্ক্যান করুন · আপনার অবশ্যই নির্বাচিত স্থানে শারীরিকভাবে উপস্থিত থাকতে হবে</div>
       </div>
     </div>
 
     <!-- Location picker -->
-    <div class="field-label">Select Admin Station Location</div>
+    <div class="field-label">অ্যাডমিন স্টেশনের স্থান নির্বাচন করুন</div>
     <div class="admin-loc-pills" id="adminLocPills"></div>
 
     <!-- Admin GPS status -->
     <div class="loc-status checking" id="adminLocStatus" style="margin-top:10px">
       <div class="loc-icon" id="adminLocIcon">📡</div>
       <div>
-        <div class="loc-title" id="adminLocTitle">Getting your location…</div>
-        <div class="loc-sub"  id="adminLocSub">Please wait</div>
+        <div class="loc-title" id="adminLocTitle">আপনার অবস্থান পাওয়া যাচ্ছে…</div>
+        <div class="loc-sub"  id="adminLocSub">অনুগ্রহ করে অপেক্ষা করুন</div>
       </div>
     </div>
 
     <!-- QR scanner -->
-    <div class="field-label">Scan Employee QR Code</div>
-    <button class="btn-camera-toggle" id="btnCameraToggle" onclick="toggleCamera()">📷 Start Camera</button>
+    <div class="field-label">কর্মচারীর QR কোড স্ক্যান করুন</div>
+    <button class="btn-camera-toggle" id="btnCameraToggle" onclick="toggleCamera()">📷 ক্যামেরা চালু করুন</button>
     <div class="qr-scanner-wrap" id="qrScannerWrap">
       <video id="qrVideo" autoplay playsinline muted></video>
       <div class="qr-overlay">
@@ -312,7 +370,7 @@
         </div>
       </div>
     </div>
-    <div class="qr-scan-status" id="qrScanStatus">📷 Press "Start Camera" to begin scanning</div>
+    <div class="qr-scan-status" id="qrScanStatus">📷 স্ক্যান শুরু করতে "ক্যামেরা চালু করুন" চাপুন</div>
 
     <!-- Scanned employee preview -->
     <div class="scan-preview" id="scanPreview">
@@ -326,21 +384,36 @@
 
     <!-- Action buttons -->
     <div class="scan-action-row" id="scanActionRow" style="display:none">
-      <button class="btn-scan-in"  id="btnScanIn"  onclick="adminDoIn()">✅ Check IN</button>
-      <button class="btn-scan-out" id="btnScanOut" onclick="adminDoOut()">🚪 Check OUT</button>
+      <button class="btn-scan-in"  id="btnScanIn"  onclick="adminDoIn()">✅ চেক-ইন</button>
+      <button class="btn-scan-out" id="btnScanOut" onclick="adminDoOut()">🚪 চেক-আউট</button>
     </div>
-    <button class="btn-rescan" id="btnRescan" style="display:none" onclick="resumeScanner()">↩ Scan Another</button>
+    <button class="btn-rescan" id="btnRescan" style="display:none" onclick="resumeScanner()">↩ আরেকটি স্ক্যান করুন</button>
+  </div>
+
+  <!-- DATA MANAGEMENT (admin roster editor) -->
+  <div class="card">
+    <div class="section-title">ডেটা ম্যানেজমেন্ট</div>
+    <div class="mgmt-tabs">
+      <button class="mgmt-tab active" id="tabEmps" onclick="switchMgmtTab('emps')">👥 কর্মচারী</button>
+      <button class="mgmt-tab" id="tabLocs" onclick="switchMgmtTab('locs')">📍 ডিউটি স্থান</button>
+    </div>
+    <div class="mgmt-add-row">
+      <button class="btn-mgmt-add" id="btnAddEmp" onclick="openEmpForm()">＋ নতুন কর্মচারী</button>
+      <button class="btn-mgmt-add" id="btnAddLoc" onclick="openLocForm()" style="display:none">＋ নতুন ডিউটি স্থান</button>
+    </div>
+    <div id="mgmtEmpList" class="mgmt-list"></div>
+    <div id="mgmtLocList" class="mgmt-list" style="display:none"></div>
   </div>
 
   <!-- Today's records (admin view) -->
   <div class="card">
-    <div class="section-title">Today's Attendance</div>
+    <div class="section-title">আজকের হাজিরা</div>
     <div id="adminRecordsList">
-      <div class="empty-state"><div class="e-icon">🗒️</div>No records yet today</div>
+      <div class="empty-state"><div class="e-icon">🗒️</div>আজ এখনও কোনো রেকর্ড নেই</div>
     </div>
   </div>
 
-  <button class="btn-exit-admin" style="margin: 0 0 32px" onclick="exitAdmin()">✕ Exit Admin Mode</button>
+  <button class="btn-exit-admin" style="margin: 0 0 32px" onclick="exitAdmin()">✕ অ্যাডমিন মোড থেকে বের হন</button>
 </div>
 
 <!-- DOWNLOAD SHEET -->
@@ -348,26 +421,26 @@
   <div class="modal" id="downloadModal">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-      <div class="modal-title">📥 Download Records</div>
-      <button class="pin-close" style="position:static;margin-left:8px;" onclick="closeDownloadSheet()" title="Close">✕</button>
+      <div class="modal-title">📥 রেকর্ড ডাউনলোড</div>
+      <button class="pin-close" style="position:static;margin-left:8px;" onclick="closeDownloadSheet()" title="বন্ধ">✕</button>
     </div>
-    <div class="modal-sub">Download all raw attendance data, or a monthly summary with days present, total duty hours, and average daily hours per employee.</div>
+    <div class="modal-sub">সম্পূর্ণ কাঁচা হাজিরার তথ্য, কিংবা প্রতি কর্মচারীর উপস্থিতির দিন, মোট ডিউটি ঘণ্টা ও গড় দৈনিক ঘণ্টাসহ মাসিক সারাংশ ডাউনলোড করুন।</div>
 
-    <div class="field-label" style="margin-bottom:6px;">Summary month</div>
-    <select id="summaryMonthSel" style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;color:var(--text);background:white;margin-bottom:20px;appearance:auto">
-      <option value="">All months</option>
+    <div class="field-label" style="margin-bottom:6px;">সারাংশের মাস</div>
+    <select id="summaryMonthSel" style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-family:'Hind Siliguri',sans-serif;font-size:14px;font-weight:700;color:var(--text);background:white;margin-bottom:20px;appearance:auto">
+      <option value="">সব মাস</option>
     </select>
 
     <div class="download-row">
       <button class="btn-dl" onclick="downloadRawCsv()">
         <span class="dl-icon">📄</span>
-        Raw Records
-        <span class="dl-label">Every check-in/out row</span>
+        কাঁচা রেকর্ড
+        <span class="dl-label">প্রতিটি চেক-ইন/আউট সারি</span>
       </button>
       <button class="btn-dl" onclick="downloadSummaryCsv()">
         <span class="dl-icon">📊</span>
-        Summary Sheet
-        <span class="dl-label">Days present · duty hours · avg</span>
+        সারাংশ শিট
+        <span class="dl-label">উপস্থিত দিন · ডিউটি ঘণ্টা · গড়</span>
       </button>
     </div>
   </div>
