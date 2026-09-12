@@ -40,7 +40,7 @@
         <button class="btn-copy" id="copyLinkBtn" type="button">লিংক কপি</button>
       </div>
       <p class="gate-help" id="gatePhoneNote">এই ফোনে? "Chrome-এ খুলুন"-এ চাপুন — পেজ Chrome-এ খুলে যেখানে থেমেছিলেন সেখান থেকে শুরু হবে।</p>
-      <p class="gate-help" id="gateDesktopNote" style="display:none">এই কম্পিউটারে? চালে Chrome ইন্সটল করে তারপর এই পেজ Chrome-এ খুলুন।</p>
+      <p class="gate-help" id="gateDesktopNote" style="display:none">এই কম্পিউটারে? আগে Chrome ইনস্টল করে নিন, তারপর এই পেজটি Chrome-এ খুলুন।</p>
     </div>
   </div>
 </div>
@@ -91,7 +91,7 @@
     </div>
   </div>
   <div class="qr-print-body">
-    <input type="text" class="qr-search-bar" id="qrSearchInput" placeholder="🔍  কর্মচারী খুঁজুন…" oninput="filterQrGrid()">
+    <input type="text" class="qr-search-bar" id="qrSearchInput" placeholder="🔍 কর্মচারী খুঁজুন…" oninput="filterQrGrid()">
     <div class="emp-list" id="qrGrid"></div>
   </div>
 </div>
@@ -100,7 +100,7 @@
 <div class="id-card-overlay" id="idCardOverlay" onclick="handleIdCardOverlayClick(event)">
   <div class="id-card" id="idCardBox">
     <div class="id-card-header">
-      <div class="id-card-title">এমপ্লয়ি আইডি কার্ড</div>
+      <div class="id-card-title">কর্মচারী আইডি কার্ড</div>
       <button class="id-card-close" onclick="closeIdCard()">✕</button>
     </div>
     <div class="id-card-body">
@@ -184,8 +184,8 @@
     <button class="warn-close" onclick="closeCheckoutLocked()" title="বন্ধ">✕</button>
     <div class="warn-icon">🔐</div>
     <div class="warn-title" id="clTitle">চেক-আউট লক হয়ে আছে</div>
-    <div class="warn-sub">এই ব্রাউজারটি আর সেই ডিভাইস নয়, যা দিয়ে চেক-ইন হয়েছিল।</div>
-    <div class="warn-text">রেকর্ড সঠিক রাখতে চেক-আউট শুধু সেই ডিভাইস থেকেই হয়, যেটি দিয়ে কর্মচারী চেক-ইন করেছিলেন। ব্রাউজারের ডেটা পরিষ্কার করেছেন বা ডিভাইস বদলেছেন? তাহলে অ্যাডমিনের কাছে আপনার আইডি কার্ড দেখান — অ্যাডমিন ভিউ থেকে স্ক্যান করে সেশন বন্ধ করে দিতে পারেন।</div>
+    <div class="warn-sub">আপনি এখন সেই ডিভাইস বা ব্রাউজার থেকে কাজ করছেন না, যেখান থেকে চেক-ইন করা হয়েছিল।</div>
+    <div class="warn-text">রেকর্ড সঠিক রাখতে চেক-আউট শুধু সেই ডিভাইস থেকেই হয়, যেটি দিয়ে কর্মচারী চেক-ইন করেছিলেন। ব্রাউজারের ডেটা মুছে ফেলেছেন বা ডিভাইস বদলেছেন? তাহলে অ্যাডমিনের কাছে আপনার আইডি কার্ড দেখান — অ্যাডমিন ভিউ থেকে স্ক্যান করে সেশন বন্ধ করে দিতে পারেন।</div>
     <div class="warn-actions">
       <button class="warn-btn warn-agree" onclick="closeCheckoutLocked()">বুঝেছি</button>
     </div>
@@ -242,7 +242,6 @@
     </div>
     <div class="header-menu" id="headerMenu">
       <ul class="nav">
-        <li class="nav-item"><a class="nav-link" href="#todayLedger">আজকের এটেন্ডেন্স</a></li>
         <li class="nav-item">
           <button class="nav-link" id="adminBtn" title="অ্যাডমিন মোড" onclick="handleAdminBtn()">🛡️ অ্যাডমিন</button>
         </li>
@@ -263,7 +262,25 @@
     <div class="container">
       <div class="row">
         <div class="col-12 col-lg-9">
-          <h6 class="title-heading" id="headerDate">শুক্রবার, ১১ সেপ্টেম্বর, ২০২৬</h6>
+          <h6 class="title-heading" id="headerDate">
+            <span id="headerDateText">শুক্রবার, ১১ সেপ্টেম্বর, ২০২৬</span>
+            <div class="datetime-bar">
+              <div class="dt-block">
+                <div class="dt-label">তারিখ</div>
+                <div class="dt-val" id="dispDate">—</div>
+              </div>
+              <div class="dt-divider"></div>
+              <div class="dt-block">
+                <div class="dt-label">সময়</div>
+                <div class="dt-val" id="dispTime">—</div>
+              </div>
+              <div class="dt-divider"></div>
+              <div class="dt-block">
+                <div class="dt-label">দিন</div>
+                <div class="dt-val" id="dispDay">—</div>
+              </div>
+            </div>
+          </h6>
           <h1 class="hero-text">
             <span>স্টাফ এটেন্ডেন্স</span>
             <span class="stroke-text">DUTY GATE</span>
@@ -271,6 +288,7 @@
           <p class="lead">প্রতিষ্ঠান বাছাই করুন, আপনার নাম নিশ্চিত করুন — লোকেশন যাচাই হয়ে চেক-ইন ও চেক-আউট হয় এক নিমিষেই।</p>
           <div class="hero-actions">
             <a class="button button-lg" href="#dutyStation">এটেন্ডেন্স দিন</a>
+            <a class="hero-quick-link" href="#todayLedger">আজকের এটেন্ডেন্স</a>
           </div>
         </div>
       </div>
@@ -285,23 +303,6 @@
         <div class="row align-items-start">
           <div class="col-12 col-lg-7">
             <div class="card duty-card">
-
-              <div class="datetime-bar">
-                <div class="dt-block">
-                  <div class="dt-label">তারিখ</div>
-                  <div class="dt-val" id="dispDate">—</div>
-                </div>
-                <div class="dt-divider"></div>
-                <div class="dt-block">
-                  <div class="dt-label">সময়</div>
-                  <div class="dt-val" id="dispTime">—</div>
-                </div>
-                <div class="dt-divider"></div>
-                <div class="dt-block">
-                  <div class="dt-label">দিন</div>
-                  <div class="dt-val" id="dispDay">—</div>
-                </div>
-              </div>
 
               <!-- ESTABLISHMENT SELECTOR -->
               <div class="field-label" id="estLabel">প্রতিষ্ঠান নির্বাচন করুন</div>
@@ -353,7 +354,7 @@
               <div>
                 <i class="dg-ico">🪪</i>
                 <h3>প্রতিষ্ঠান · নাম নিশ্চিত</h3>
-                <p>প্রতিষ্ঠান বাছাই করে নাম সার্চ করুন — ডিউটি স্থান এবং ডিভাইস নিজে থেকেই যাচাই হয়ে যাবে।</p>
+                <p>প্রতিষ্ঠান বাছাই করে নাম খুঁজুন — ডিউটি স্থান এবং ডিভাইস নিজে থেকেই যাচাই হয়ে যাবে।</p>
               </div>
             </div>
             <div class="order-box mt-lg">
@@ -378,7 +379,7 @@
         <div class="col-12 col-lg-8">
           <h6 class="title-heading">লেজার</h6>
           <h2 class="display-3 fw-medium">আজকের এটেন্ডেন্স</h2>
-          <p class="lead">শিফটের পালা — কে প্রাঙ্গণে আছেন, কে বেরিয়েছেন, এক নজরে দেখুন।</p>
+          <p class="lead">এই শিফটে কে প্রাঙ্গণে আছেন, কে বেরিয়ে গেছেন — এক নজরে দেখুন।</p>
         </div>
       </div>
 
@@ -417,13 +418,13 @@
       <div class="row align-items-center">
         <div class="col-12 col-lg-8">
           <h6 class="title-heading">অ্যাডমিন</h6>
-          <h2 class="display-3 fw-medium">পাসবোর্ড</h2>
-          <p class="lead">কাউন্টার স্টেশন — পাস স্ক্যান, রোস্টার, রিপোর্ট আর আইডি কার্ড, এক জায়গায়।</p>
+          <h2 class="display-3 fw-medium">অ্যাডমিন সেকশন</h2>
+          <p class="lead"> — পাস স্ক্যান, রোস্টার, রিপোর্ট আর আইডি কার্ড, এক জায়গায়।</p>
         </div>
         <div class="col-12 col-lg-4">
           <div class="admin-head-actions">
-            <span class="admin-head-tag">🛡️ আজকের পালা সক্রিয়</span>
-            <button class="button button-ghost" onclick="exitAdmin()">✕ কাউন্টার বন্ধ</button>
+            <span class="admin-head-tag">🛡️ আজকের সেশন সক্রিয়</span>
+            <button class="button button-ghost" onclick="exitAdmin()">✕ বন্ধ</button>
           </div>
         </div>
       </div>
@@ -445,7 +446,7 @@
             <div class="loc-status checking" id="adminLocStatus" style="margin-top:10px">
               <div class="loc-icon" id="adminLocIcon">📡</div>
               <div>
-                <div class="loc-title" id="adminLocTitle">আপনার অবস্থান পাওয়া যাচ্ছে…</div>
+                <div class="loc-title" id="adminLocTitle">আপনার লোকেশন পাওয়া যাচ্ছে…</div>
                 <div class="loc-sub"  id="adminLocSub">অনুগ্রহ করে অপেক্ষা করুন</div>
               </div>
             </div>
@@ -507,7 +508,7 @@
             <span class="pass-caret">▾</span>
           </button>
           <div class="pass-body">
-            <p class="pass-copy">সম্পূর্ণ এটেন্ডেন্স, কিংবা প্রতি কর্মচারীর উপস্থিত দিন ও ডিউটি ঘণ্টাসহ মাসিক সারাংশ নামান।</p>
+            <p class="pass-copy">সম্পূর্ণ এটেন্ডেন্স, কিংবা প্রতি কর্মচারীর উপস্থিত দিন ও ডিউটি ঘণ্টাসহ মাসিক সারাংশ ডাউনলোড করুন।</p>
             <div class="field-label" style="margin-bottom:6px;">সারাংশের মাস</div>
             <select id="summaryMonthSel" class="report-month">
               <option value="">সব মাস</option>
@@ -516,7 +517,7 @@
               <button class="btn-dl" onclick="downloadRawCsv()">
                 <span class="dl-icon">📄</span>
                 রেকর্ড
-                <span class="dl-label">প্রতিটি চেক-ইন/আউট সারি</span>
+                <span class="dl-label">প্রতিটি চেক-ইন ও চেক-আউট সারি</span>
               </button>
               <button class="btn-dl" onclick="downloadSummaryCsv()">
                 <span class="dl-icon">📊</span>
@@ -582,17 +583,17 @@
         <div class="row g-4 g-lg-5">
           <div class="col-12 col-lg-4">
             <h2 class="uppercase letter-spacing-1"><a href="#">ডিউটি গেট</a></h2>
-            <p>স্টাফ এটেন্ডেন্স ফর্ম — প্রতিটি চেক-ইন ও চেক-আউট ডিভাইস আর লোকেশন দিয়ে যাচাই করে রাখে।</p>
+            <p>স্টাফ এটেন্ডেন্স সিস্টেম — প্রতিটি চেক-ইন ও চেক-আউট ডিভাইস আর লোকেশন দিয়ে যাচাই করে রাখে।</p>
           </div>
           <div class="col-12 col-md-6 col-lg-4">
             <h6 class="sm-heading">ডিউটির সময়</h6>
-            <h3>প্রতিদিন ভোর ৬টা — রাত ১১টা</h3>
-            <p>দুই শিফট — সকাল ও বিকাল</p>
+            <h3>প্রতিদিন সকাল ৬টা — রাত ১২টা</h3>
+            <p>তিন শিফট — সকাল (৬-১২), দুপুর (১২-৬) ও রাত্রি (৬-১২)</p>
           </div>
           <div class="col-12 col-md-6 col-lg-4">
             <h6 class="sm-heading">যোগাযোগ</h6>
             <h3>je1_bd1_raghu@wbphed.gov.in</h3>
-            <p>কাউন্টার সমস্যা? অ্যাডমিন PIN দিয়ে পাসবোর্ড খুলুন</p>
+            <p>সমস্যা হলে অ্যাডমিন সেকশনটিকে PIN দিয়ে খুলুন।</p>
           </div>
         </div>
       </div>
