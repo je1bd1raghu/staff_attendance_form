@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Baloo+Da+2:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-preloader="true">
 
 <!-- LOADING SCREEN -->
 <div class="loading-screen" id="loadingScreen">
@@ -234,260 +234,399 @@
   </div>
 </div>
 
-<!-- HEADER -->
-<div class="header" id="mainHeader">
-  <p id="headerDate">লোড হচ্ছে…</p>
-  <h1>স্টাফ এটেন্ডেন্স</h1>
-  <div class="header-right">
-    <button class="icon-btn" id="adminBtn" title="অ্যাডমিন মোড" onclick="handleAdminBtn()">🛡️</button>
+<!-- ══════════════════════ HEADER (template style) ══════════════════════ -->
+<header class="header" id="mainHeader">
+  <div class="container-fluid">
+    <div class="header-logo">
+      <h2 class="uppercase letter-spacing-1"><a href="#">ডিউটি <span class="stroke-text">গেট</span></a></h2>
+    </div>
+    <div class="header-menu" id="headerMenu">
+      <ul class="nav">
+        <li class="nav-item"><a class="nav-link" href="#todayLedger">আজকের এটেন্ডেন্স</a></li>
+        <li class="nav-item">
+          <button class="nav-link" id="adminBtn" title="অ্যাডমিন মোড" onclick="handleAdminBtn()">🛡️ অ্যাডমিন</button>
+        </li>
+      </ul>
+      <button id="menu-close" class="button-circle button-circle-sm" onclick="document.getElementById('headerMenu').classList.remove('open')" aria-label="মেনু বন্ধ">✕</button>
+    </div>
+    <button class="menu-toggle" onclick="document.getElementById('headerMenu').classList.toggle('open')" aria-label="মেনু">
+      মেনু <span></span>
+    </button>
   </div>
-</div>
-</div>
+</header>
 
-<!-- MAIN (employee mode) -->
-<div class="card-wrapper" id="employeeView">
-  <div class="card">
-    <div class="datetime-bar">
-      <div class="dt-block">
-        <div class="dt-label">তারিখ</div>
-        <div class="dt-val" id="dispDate">—</div>
-      </div>
-      <div class="dt-divider"></div>
-      <div class="dt-block">
-        <div class="dt-label">সময়</div>
-        <div class="dt-val" id="dispTime">—</div>
-      </div>
-      <div class="dt-divider"></div>
-      <div class="dt-block">
-        <div class="dt-label">দিন</div>
-        <div class="dt-val" id="dispDay">—</div>
-      </div>
-    </div>
+<!-- ══════════════════════ EMPLOYEE VIEW ══════════════════════ -->
+<div id="employeeView">
 
-    <!-- ESTABLISHMENT SELECTOR -->
-    <div class="field-label" id="estLabel">প্রতিষ্ঠান নির্বাচন করুন</div>
-    <div class="est-scroller" id="estScroller"></div>
-
-    <!-- EMPLOYEE SEARCH COMBOBOX -->
-    <div class="name-block locked" id="nameBlock">
-      <div class="field-label">আপনার নাম নির্বাচন করুন</div>
-      <div class="combo-wrapper" id="comboWrapper">
-        <div class="combo-input-row">
-          <span class="combo-search-icon">&#128269;</span>
-          <input type="text" id="empSearch" class="combo-input" placeholder="নাম লিখে খুঁজুন…"
-                 autocomplete="off" disabled oninput="filterEmployees()" onfocus="openDropdown()" />
-          <button class="combo-clear" id="comboClear" onclick="clearEmployee()" style="display:none">&#x2715;</button>
-        </div>
-        <div class="combo-dropdown" id="comboDropdown" style="display:none"></div>
-      </div>
-      <div class="name-lock-hint" id="nameLockHint">চালিয়ে যেতে উপরে প্রতিষ্ঠান নির্বাচন করুন</div>
-      <select id="empSelect" style="display:none"></select>
-    </div>
-
-    <!-- LOCATION STATUS -->
-    <div class="loc-status idle" id="locStatus">
-      <div class="loc-icon" id="locIcon">📍</div>
-      <div>
-        <div class="loc-title" id="locTitle">লোকেশন যাচাই করা হয়নি</div>
-        <div class="loc-sub"  id="locSub">শুরু করতে আপনার নাম নির্বাচন করুন</div>
-      </div>
-    </div>
-
-    <!-- DEVICE ID LINE -->
-    <div class="dev-box" id="devBox"></div>
-
-    <!-- CHECK IN / OUT BUTTONS -->
-    <div class="btn-row">
-      <button class="btn-main btn-in"  id="btnIn"  onclick="doCheckIn()"  disabled>
-        <span class="btn-icon">✅</span>চেক-ইন
-      </button>
-      <button class="btn-main btn-out" id="btnOut" onclick="doCheckOut()" disabled>
-        <span class="btn-icon">🚪</span>চেক-আউট
-      </button>
-    </div>
-  </div>
-
-  <!-- TODAY'S RECORDS -->
-  <div class="card">
-    <div class="section-title">আজকের এটেন্ডেন্স</div>
-
-    <!-- FILTER BAR -->
-    <div class="rec-filter" id="recFilter" style="display:none">
-      <div class="rec-search-row">
-        <span class="rec-search-icon">&#128269;</span>
-        <input type="text" id="recSearch" class="rec-search" placeholder="নাম, পদবি বা স্থান খুঁজুন…"
-               autocomplete="off" oninput="filterRecords()">
-        <button class="rec-clear" id="recClear" onclick="clearRecSearch()" style="display:none">&#x2715;</button>
-      </div>
-      <div class="rec-chips" id="recChips">
-        <button class="rec-chip active" data-status="all"    onclick="setRecFilter('all')">সব <span class="rec-chip-n" id="recN-all">0</span></button>
-        <button class="rec-chip"        data-status="inside" onclick="setRecFilter('inside')">প্রাঙ্গণে <span class="rec-chip-n" id="recN-inside">0</span></button>
-        <button class="rec-chip"        data-status="left"   onclick="setRecFilter('left')">বেরিয়েছেন <span class="rec-chip-n" id="recN-left">0</span></button>
-      </div>
-    </div>
-
-    <div id="recordsList">
-      <div class="empty-state"><div class="e-icon">🗒️</div>আজ এখনও কোনো রেকর্ড নেই</div>
-    </div>
-  </div>
-  <div style="height:24px"></div>
-</div>
-
-<!-- ADMIN VIEW — পাসবোর্ড (pass board) -->
-<div class="card-wrapper" id="adminView" style="display:none">
-
-  <!-- Counter rail -->
-  <div class="counter-rail">
-    <div class="counter-rail-id">
-      <span class="counter-mark">🛡️</span>
-      <div>
-        <div class="counter-title">অ্যাডমিন · পাসবোর্ড</div>
-        <div class="counter-sub">কাউন্টার · আজকের পালা</div>
-      </div>
-    </div>
-    <button class="counter-exit" onclick="exitAdmin()">কাউন্টার বন্ধ</button>
-  </div>
-
-  <div class="pass-board" id="passBoard">
-
-    <!-- PASS · স্ক্যান স্টেশন (hero) -->
-    <section class="pass pass-hero open" id="postScan">
-      <div class="pass-head">
-        <div class="pass-head-main">
-          <span class="pass-tag">স্টেশন</span>
-          <h2 class="pass-title">স্ক্যান স্টেশন</h2>
-        </div>
-        <div class="pass-note">পাস স্ক্যান করে এটেন্ডেন্স দিন</div>
-      </div>
-      <div class="pass-body">
-        <div class="field-label">এই কাউন্টারের স্থান</div>
-        <div class="admin-loc-pills" id="adminLocPills"></div>
-        <div class="loc-status checking" id="adminLocStatus" style="margin-top:10px">
-          <div class="loc-icon" id="adminLocIcon">📡</div>
-          <div>
-            <div class="loc-title" id="adminLocTitle">আপনার অবস্থান পাওয়া যাচ্ছে…</div>
-            <div class="loc-sub"  id="adminLocSub">অনুগ্রহ করে অপেক্ষা করুন</div>
+  <!-- HERO -->
+  <section class="section-lg hero-section">
+    <div class="container">
+      <div class="row">
+        <div class="col-12 col-lg-9">
+          <h6 class="title-heading" id="headerDate">শুক্রবার, ১১ সেপ্টেম্বর, ২০২৬</h6>
+          <h1 class="hero-text">
+            <span>স্টাফ এটেন্ডেন্স</span>
+            <span class="stroke-text">ডিউটি গেট</span>
+          </h1>
+          <p class="lead">প্রতিষ্ঠান বাছাই করুন, আপনার নাম নিশ্চিত করুন — লোকেশন যাচাই হয়ে চেক-ইন ও চেক-আউট হয় এক নিমিষেই।</p>
+          <div class="hero-actions">
+            <a class="button button-lg" href="#dutyStation">এটেন্ডেন্স দিন</a>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+  <!-- end Hero -->
 
-        <div class="field-label" style="margin-top:18px">কর্মচারীর QR পাস</div>
-        <button class="btn-camera-toggle" id="btnCameraToggle" onclick="toggleCamera()">📷 ক্যামেরা চালু করুন</button>
-        <div class="qr-scanner-wrap" id="qrScannerWrap">
-          <video id="qrVideo" autoplay playsinline muted></video>
-          <div class="qr-overlay">
-            <div class="qr-frame">
-              <div class="qr-scan-line"></div>
+  <!-- ATTENDANCE STATION -->
+  <section class="section-box pt-0" id="dutyStation">
+    <div class="section bg-lighter border-radius-1">
+      <div class="container">
+        <div class="row align-items-start">
+          <div class="col-12 col-lg-7">
+            <div class="card duty-card">
+
+              <div class="datetime-bar">
+                <div class="dt-block">
+                  <div class="dt-label">তারিখ</div>
+                  <div class="dt-val" id="dispDate">—</div>
+                </div>
+                <div class="dt-divider"></div>
+                <div class="dt-block">
+                  <div class="dt-label">সময়</div>
+                  <div class="dt-val" id="dispTime">—</div>
+                </div>
+                <div class="dt-divider"></div>
+                <div class="dt-block">
+                  <div class="dt-label">দিন</div>
+                  <div class="dt-val" id="dispDay">—</div>
+                </div>
+              </div>
+
+              <!-- ESTABLISHMENT SELECTOR -->
+              <div class="field-label" id="estLabel">প্রতিষ্ঠান নির্বাচন করুন</div>
+              <div class="est-scroller" id="estScroller"></div>
+
+              <!-- EMPLOYEE SEARCH COMBOBOX -->
+              <div class="name-block locked" id="nameBlock">
+                <div class="field-label">আপনার নাম নির্বাচন করুন</div>
+                <div class="combo-wrapper" id="comboWrapper">
+                  <div class="combo-input-row">
+                    <span class="combo-search-icon">&#128269;</span>
+                    <input type="text" id="empSearch" class="combo-input" placeholder="নাম লিখে খুঁজুন…"
+                           autocomplete="off" disabled oninput="filterEmployees()" onfocus="openDropdown()" />
+                    <button class="combo-clear" id="comboClear" onclick="clearEmployee()" style="display:none">&#x2715;</button>
+                  </div>
+                  <div class="combo-dropdown" id="comboDropdown" style="display:none"></div>
+                </div>
+                <div class="name-lock-hint" id="nameLockHint">চালিয়ে যেতে উপরে প্রতিষ্ঠান নির্বাচন করুন</div>
+                <select id="empSelect" style="display:none"></select>
+              </div>
+
+              <!-- LOCATION STATUS -->
+              <div class="loc-status idle" id="locStatus">
+                <div class="loc-icon" id="locIcon">📍</div>
+                <div>
+                  <div class="loc-title" id="locTitle">লোকেশন যাচাই করা হয়নি</div>
+                  <div class="loc-sub"  id="locSub">শুরু করতে আপনার নাম নির্বাচন করুন</div>
+                </div>
+              </div>
+
+              <!-- DEVICE ID LINE -->
+              <div class="dev-box" id="devBox"></div>
+
+              <!-- CHECK IN / OUT BUTTONS -->
+              <div class="btn-row">
+                <button class="btn-main btn-in"  id="btnIn"  onclick="doCheckIn()"  disabled>
+                  <span class="btn-icon">✅</span>চেক-ইন
+                </button>
+                <button class="btn-main btn-out" id="btnOut" onclick="doCheckOut()" disabled>
+                  <span class="btn-icon">🚪</span>চেক-আউট
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-lg-5">
+            <div class="order-box">
+              <div class="order"><h2 class="display-4 fw-semi-bold stroke-text">০১</h2></div>
+              <div>
+                <i class="dg-ico">🪪</i>
+                <h3>প্রতিষ্ঠান · নাম নিশ্চিত</h3>
+                <p>প্রতিষ্ঠান বাছাই করে নাম সার্চ করুন — ডিউটি স্থান এবং ডিভাইস নিজে থেকেই যাচাই হয়ে যাবে।</p>
+              </div>
+            </div>
+            <div class="order-box mt-lg">
+              <div class="order"><h2 class="display-4 fw-semi-bold stroke-text">০২</h2></div>
+              <div>
+                <i class="dg-ico">🛡️</i>
+                <h3>লোকেশন যাচাই হয়ে চেক-ইন</h3>
+                <p>নির্বাচিত ডিউটি স্থানের নির্ধারিত সীমার মধ্যে থাকলেই চেক-ইন / চেক-আউট বাটন খুলে যাবে।</p>
+              </div>
             </div>
           </div>
         </div>
-        <div class="qr-scan-status" id="qrScanStatus">📷 স্ক্যান শুরু করতে "ক্যামেরা চালু করুন" চাপুন</div>
+      </div>
+    </div>
+  </section>
+  <!-- end Attendance Station -->
 
-        <div class="scan-preview" id="scanPreview">
-          <div class="scan-avatar" id="scanAvatar"></div>
-          <div class="scan-info">
-            <div class="scan-name" id="scanName"></div>
-            <div class="scan-desig" id="scanDesig"></div>
-            <div class="scan-state" id="scanState"></div>
+  <!-- TODAY'S ATTENDANCE -->
+  <section class="section-lg pt-0" id="todayLedger">
+    <div class="container">
+      <div class="row">
+        <div class="col-12 col-lg-8">
+          <h6 class="title-heading">লেজার</h6>
+          <h2 class="display-3 fw-medium">আজকের এটেন্ডেন্স</h2>
+          <p class="lead">শিফটের পালা — কে প্রাঙ্গণে আছেন, কে বেরিয়েছেন, এক নজরে দেখুন।</p>
+        </div>
+      </div>
+
+      <div class="card ledger-card">
+        <!-- FILTER BAR -->
+        <div class="rec-filter" id="recFilter" style="display:none">
+          <div class="rec-search-row">
+            <span class="rec-search-icon">&#128269;</span>
+            <input type="text" id="recSearch" class="rec-search" placeholder="নাম, পদবি বা স্থান খুঁজুন…"
+                   autocomplete="off" oninput="filterRecords()">
+            <button class="rec-clear" id="recClear" onclick="clearRecSearch()" style="display:none">&#x2715;</button>
+          </div>
+          <div class="rec-chips" id="recChips">
+            <button class="rec-chip active" data-status="all"    onclick="setRecFilter('all')">সব <span class="rec-chip-n" id="recN-all">0</span></button>
+            <button class="rec-chip"        data-status="inside" onclick="setRecFilter('inside')">প্রাঙ্গণে <span class="rec-chip-n" id="recN-inside">0</span></button>
+            <button class="rec-chip"        data-status="left"   onclick="setRecFilter('left')">বেরিয়েছেন <span class="rec-chip-n" id="recN-left">0</span></button>
           </div>
         </div>
 
-        <div class="scan-action-row" id="scanActionRow" style="display:none">
-          <button class="btn-scan-in"  id="btnScanIn"  onclick="adminDoIn()">✅ চেক-ইন</button>
-          <button class="btn-scan-out" id="btnScanOut" onclick="adminDoOut()">🚪 চেক-আউট</button>
-        </div>
-        <button class="btn-rescan" id="btnRescan" style="display:none" onclick="resumeScanner()">↩ আরেকটি স্ক্যান করুন</button>
-      </div>
-    </section>
-
-    <!-- PASS · আজকের এটেন্ডেন্স -->
-    <section class="pass open" id="postLedger">
-      <button class="pass-head" type="button" onclick="togglePost(this)">
-        <span class="pass-head-main">
-          <span class="pass-tag">লেজার</span>
-          <span class="pass-title">আজকের এটেন্ডেন্স</span>
-        </span>
-        <span class="pass-meta" id="ledgerMeta">০ জন</span>
-        <span class="pass-caret">▾</span>
-      </button>
-      <div class="pass-body">
-        <div id="adminRecordsList">
-          <div class="empty-state"><div class="e-icon">🗒️</div>এখনও কেউ এটেন্ডেন্স দেননি — একটি পাস স্ক্যান করুন</div>
+        <div id="recordsList">
+          <div class="empty-state"><div class="e-icon">🗒️</div>আজ এখনও কোনো রেকর্ড নেই</div>
         </div>
       </div>
-    </section>
+    </div>
+  </section>
+  <!-- end Today's Attendance -->
 
-    <!-- PASS · ডেটা ম্যানেজমেন্ট -->
-    <section class="pass" id="postRoster">
-      <button class="pass-head" type="button" onclick="togglePost(this)">
-        <span class="pass-head-main">
-          <span class="pass-tag">রোস্টার</span>
-          <span class="pass-title">ডেটা ম্যানেজমেন্ট</span>
-        </span>
-        <span class="pass-meta" id="rosterMeta">—</span>
-        <span class="pass-caret">▾</span>
-      </button>
-      <div class="pass-body">
-        <div class="mgmt-tabs">
-          <button class="mgmt-tab active" id="tabEmps" onclick="switchMgmtTab('emps')">👥 কর্মচারী</button>
-          <button class="mgmt-tab" id="tabLocs" onclick="switchMgmtTab('locs')">📍 ডিউটি স্থান</button>
+</div>
+<!-- ══════════════════════ END EMPLOYEE VIEW ══════════════════════ -->
+
+<!-- ══════════════════════ ADMIN VIEW — পাসবোর্ড ══════════════════════ -->
+<div id="adminView" style="display:none">
+
+  <section class="section-lg pt-0 admin-section">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-12 col-lg-8">
+          <h6 class="title-heading">অ্যাডমিন</h6>
+          <h2 class="display-3 fw-medium">পাসবোর্ড</h2>
+          <p class="lead">কাউন্টার স্টেশন — পাস স্ক্যান, রোস্টার, রিপোর্ট আর আইডি কার্ড, এক জায়গায়।</p>
         </div>
-        <div class="mgmt-add-row">
-          <button class="btn-mgmt-add" id="btnAddEmp" onclick="openEmpForm()">＋ নতুন কর্মচারী</button>
-          <button class="btn-mgmt-add" id="btnAddLoc" onclick="openLocForm()" style="display:none">＋ নতুন ডিউটি স্থান</button>
+        <div class="col-12 col-lg-4">
+          <div class="admin-head-actions">
+            <span class="admin-head-tag">🛡️ আজকের পালা সক্রিয়</span>
+            <button class="button button-ghost" onclick="exitAdmin()">✕ কাউন্টার বন্ধ</button>
+          </div>
         </div>
-        <div id="mgmtEmpList" class="mgmt-list"></div>
-        <div id="mgmtLocList" class="mgmt-list" style="display:none"></div>
       </div>
-    </section>
 
-    <!-- PASS · রিপোর্ট -->
-    <section class="pass" id="postReport">
-      <button class="pass-head" type="button" onclick="togglePost(this)">
-        <span class="pass-head-main">
-          <span class="pass-tag">CSV</span>
-          <span class="pass-title">রিপোর্ট</span>
-        </span>
-        <span class="pass-meta">ডাউনলোড</span>
-        <span class="pass-caret">▾</span>
-      </button>
-      <div class="pass-body">
-        <p class="pass-copy">সম্পূর্ণ কাঁচা এটেন্ডেন্স, কিংবা প্রতি কর্মচারীর উপস্থিত দিন ও ডিউটি ঘণ্টাসহ মাসিক সারাংশ নামান।</p>
-        <div class="field-label" style="margin-bottom:6px;">সারাংশের মাস</div>
-        <select id="summaryMonthSel" class="report-month">
-          <option value="">সব মাস</option>
-        </select>
-        <div class="download-row">
-          <button class="btn-dl" onclick="downloadRawCsv()">
-            <span class="dl-icon">📄</span>
-            কাঁচা রেকর্ড
-            <span class="dl-label">প্রতিটি চেক-ইন/আউট সারি</span>
+      <div class="pass-board" id="passBoard">
+
+        <!-- PASS · স্ক্যান স্টেশন (hero) -->
+        <section class="pass pass-hero open" id="postScan">
+          <div class="pass-head">
+            <div class="pass-head-main">
+              <span class="pass-tag">স্টেশন</span>
+              <h2 class="pass-title">স্ক্যান স্টেশন</h2>
+            </div>
+            <div class="pass-note">পাস স্ক্যান করে এটেন্ডেন্স দিন</div>
+          </div>
+          <div class="pass-body">
+            <div class="field-label">এই কাউন্টারের স্থান</div>
+            <div class="admin-loc-pills" id="adminLocPills"></div>
+            <div class="loc-status checking" id="adminLocStatus" style="margin-top:10px">
+              <div class="loc-icon" id="adminLocIcon">📡</div>
+              <div>
+                <div class="loc-title" id="adminLocTitle">আপনার অবস্থান পাওয়া যাচ্ছে…</div>
+                <div class="loc-sub"  id="adminLocSub">অনুগ্রহ করে অপেক্ষা করুন</div>
+              </div>
+            </div>
+
+            <div class="field-label" style="margin-top:18px">কর্মচারীর QR পাস</div>
+            <button class="btn-camera-toggle" id="btnCameraToggle" onclick="toggleCamera()">📷 ক্যামেরা চালু করুন</button>
+            <div class="qr-scanner-wrap" id="qrScannerWrap">
+              <video id="qrVideo" autoplay playsinline muted></video>
+              <div class="qr-overlay">
+                <div class="qr-frame">
+                  <div class="qr-scan-line"></div>
+                </div>
+              </div>
+            </div>
+            <div class="qr-scan-status" id="qrScanStatus">📷 স্ক্যান শুরু করতে "ক্যামেরা চালু করুন" চাপুন</div>
+
+            <div class="scan-preview" id="scanPreview">
+              <div class="scan-avatar" id="scanAvatar"></div>
+              <div class="scan-info">
+                <div class="scan-name" id="scanName"></div>
+                <div class="scan-desig" id="scanDesig"></div>
+                <div class="scan-state" id="scanState"></div>
+              </div>
+            </div>
+
+            <div class="scan-action-row" id="scanActionRow" style="display:none">
+              <button class="btn-scan-in"  id="btnScanIn"  onclick="adminDoIn()">✅ চেক-ইন</button>
+              <button class="btn-scan-out" id="btnScanOut" onclick="adminDoOut()">🚪 চেক-আউট</button>
+            </div>
+            <button class="btn-rescan" id="btnRescan" style="display:none" onclick="resumeScanner()">↩ আরেকটি স্ক্যান করুন</button>
+          </div>
+        </section>
+
+        <!-- PASS · আজকের এটেন্ডেন্স -->
+        <section class="pass open" id="postLedger">
+          <button class="pass-head" type="button" onclick="togglePost(this)">
+            <span class="pass-head-main">
+              <span class="pass-tag">লেজার</span>
+              <span class="pass-title">আজকের এটেন্ডেন্স</span>
+            </span>
+            <span class="pass-meta" id="ledgerMeta">০ জন</span>
+            <span class="pass-caret">▾</span>
           </button>
-          <button class="btn-dl" onclick="downloadSummaryCsv()">
-            <span class="dl-icon">📊</span>
-            সারাংশ শিট
-            <span class="dl-label">উপস্থিত দিন · ডিউটি ঘণ্টা · গড়</span>
+          <div class="pass-body">
+            <div id="adminRecordsList">
+              <div class="empty-state"><div class="e-icon">🗒️</div>এখনও কেউ এটেন্ডেন্স দেননি — একটি পাস স্ক্যান করুন</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PASS · রিপোর্ট -->
+        <section class="pass" id="postReport">
+          <button class="pass-head" type="button" onclick="togglePost(this)">
+            <span class="pass-head-main">
+              <span class="pass-tag">CSV</span>
+              <span class="pass-title">রিপোর্ট</span>
+            </span>
+            <span class="pass-meta">ডাউনলোড</span>
+            <span class="pass-caret">▾</span>
           </button>
+          <div class="pass-body">
+            <p class="pass-copy">সম্পূর্ণ কাঁচা এটেন্ডেন্স, কিংবা প্রতি কর্মচারীর উপস্থিত দিন ও ডিউটি ঘণ্টাসহ মাসিক সারাংশ নামান।</p>
+            <div class="field-label" style="margin-bottom:6px;">সারাংশের মাস</div>
+            <select id="summaryMonthSel" class="report-month">
+              <option value="">সব মাস</option>
+            </select>
+            <div class="download-row">
+              <button class="btn-dl" onclick="downloadRawCsv()">
+                <span class="dl-icon">📄</span>
+                কাঁচা রেকর্ড
+                <span class="dl-label">প্রতিটি চেক-ইন/আউট সারি</span>
+              </button>
+              <button class="btn-dl" onclick="downloadSummaryCsv()">
+                <span class="dl-icon">📊</span>
+                সারাংশ শিট
+                <span class="dl-label">উপস্থিত দিন · ডিউটি ঘণ্টা · গড়</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- PASS · ডেটা ম্যানেজমেন্ট -->
+        <section class="pass" id="postRoster">
+          <button class="pass-head" type="button" onclick="togglePost(this)">
+            <span class="pass-head-main">
+              <span class="pass-tag">রোস্টার</span>
+              <span class="pass-title">ডেটা ম্যানেজমেন্ট</span>
+            </span>
+            <span class="pass-meta" id="rosterMeta">—</span>
+            <span class="pass-caret">▾</span>
+          </button>
+          <div class="pass-body">
+            <div class="mgmt-tabs">
+              <button class="mgmt-tab active" id="tabEmps" onclick="switchMgmtTab('emps')">👥 কর্মচারী</button>
+              <button class="mgmt-tab" id="tabLocs" onclick="switchMgmtTab('locs')">📍 ডিউটি স্থান</button>
+            </div>
+            <div class="mgmt-add-row">
+              <button class="btn-mgmt-add" id="btnAddEmp" onclick="openEmpForm()">＋ নতুন কর্মচারী</button>
+              <button class="btn-mgmt-add" id="btnAddLoc" onclick="openLocForm()" style="display:none">＋ নতুন ডিউটি স্থান</button>
+            </div>
+            <div id="mgmtEmpList" class="mgmt-list"></div>
+            <div id="mgmtLocList" class="mgmt-list" style="display:none"></div>
+          </div>
+        </section>
+
+        <!-- PASS · আইডি কার্ড -->
+        <section class="pass" id="postCards">
+          <button class="pass-head" type="button" onclick="togglePost(this)">
+            <span class="pass-head-main">
+              <span class="pass-tag">QR</span>
+              <span class="pass-title">আইডি কার্ড</span>
+            </span>
+            <span class="pass-meta" id="cardMeta">—</span>
+            <span class="pass-caret">▾</span>
+          </button>
+          <div class="pass-body">
+            <p class="pass-copy">নির্বাচিত কর্মচারীর নতুন QR পাস তৈরি করে আইডি কার্ড প্রিন্ট করুন, বা একসাথে অনেক কার্ড একটি A4 শিটে সাজান।</p>
+            <button class="btn-pass-action" onclick="openQrPrint()">🪪 আইডি কার্ড তৈরি করুন</button>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </section>
+
+</div>
+<!-- ══════════════════════ END ADMIN VIEW ══════════════════════ -->
+
+<!-- FOOTER -->
+<footer>
+  <div class="section-box">
+    <div class="section-sm bg-lighter border-radius-1">
+      <div class="container">
+        <div class="row g-4 g-lg-5">
+          <div class="col-12 col-lg-4">
+            <h2 class="uppercase letter-spacing-1"><a href="#">ডিউটি গেট</a></h2>
+            <p>স্টাফ এটেন্ডেন্স ফর্ম — প্রতিটি চেক-ইন ও চেক-আউট ডিভাইস আর লোকেশন দিয়ে যাচাই করে রাখে।</p>
+          </div>
+          <div class="col-12 col-md-6 col-lg-4">
+            <h6 class="sm-heading">অফিস সময</h6>
+            <h3>প্রতিদিন ভোর ৬টা — রাত ১১টা</h3>
+            <p>দুই শিফট — সকাল ও বিকাল</p>
+          </div>
+          <div class="col-12 col-md-6 col-lg-4">
+            <h6 class="sm-heading">যোগাযোগ</h6>
+            <h3>officer@dutygate.app</h3>
+            <p>কাউন্টার সমস্যা? অ্যাডমিন PIN দিয়ে পাসবোর্ড খুলুন</p>
+          </div>
         </div>
       </div>
-    </section>
-
-    <!-- PASS · আইডি কার্ড -->
-    <section class="pass" id="postCards">
-      <button class="pass-head" type="button" onclick="togglePost(this)">
-        <span class="pass-head-main">
-          <span class="pass-tag">QR</span>
-          <span class="pass-title">আইডি কার্ড</span>
-        </span>
-        <span class="pass-meta" id="cardMeta">—</span>
-        <span class="pass-caret">▾</span>
-      </button>
-      <div class="pass-body">
-        <p class="pass-copy">নির্বাচিত কর্মচারীর নতুন QR পাস তৈরি করে আইডি কার্ড প্রিন্ট করুন, বা একসাথে অনেক কার্ড একটি A4 শিটে সাজান।</p>
-        <button class="btn-pass-action" onclick="openQrPrint()">🪪 আইডি কার্ড তৈরি করুন</button>
-      </div>
-    </section>
-
+    </div>
   </div>
+  <div class="py-4 pb-lg-5">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-12 col-md-6 text-center text-md-start">
+          <p>© ২০২৬ ডিউটি গেট · স্টাফ এটেন্ডেন্স।</p>
+        </div>
+        <div class="col-12 col-md-6 text-center text-md-end">
+          <p>চেক-ইন · চেক-আউট · রিপোর্ট</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+<!-- end Footer -->
+
+<!-- Scroll To Top -->
+<div class="scrolltotop">
+  <a class="button-circle" href="#" aria-label="উপরে যান">
+    <span>↑</span>
+  </a>
+</div>
+
+<!-- Background Vertical lines -->
+<div class="bg-lines">
+  <div class="bg-line-1"></div>
+  <div class="bg-line-2"></div>
+  <div class="bg-line-3"></div>
+  <div class="bg-line-4"></div>
+  <div class="bg-line-5"></div>
 </div>
 
 <!-- THIRD-PARTY LIBRARIES -->

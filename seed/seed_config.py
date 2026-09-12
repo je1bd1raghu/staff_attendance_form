@@ -9,8 +9,9 @@ running the database migration and redeploying the Cloudflare Worker.
                   pull  server             → local config.json
   • Attendance    push  local CSV          → server   (upsert into `attendance`)
                   pull  server             → local CSV
+                  clear delete rows from the server (REST API, service role key)
   • Migration     run migrations/*.sql through the Supabase Management API
-                  (needs a Personal Access Token + project ref — see below)
+                  (needs a Personal Access Token + project URL — see below)
   • Deploy        run `wrangler deploy` for the Cloudflare Worker
                   (no Supabase credentials needed)
 
@@ -23,9 +24,10 @@ to SELECT. Reads (pull) work with either key. Get the key from the Supabase
 dashboard → Settings → API → service_role.
 
 The migration action needs a Supabase Personal Access Token (dashboard →
-Account → Access Tokens) plus the project ref. The ref is auto-derived from the
-Supabase URL when possible, and the token can be provided up front with
---sb-token or the SUPABASE_ACCESS_TOKEN environment variable.
+Account → Access Tokens). It asks for the project URL — the same prompt every
+other action uses — and derives the project ref from it (the token can also be
+provided up front with --sb-token or the SUPABASE_ACCESS_TOKEN environment
+variable).
 
 Requirements:
     pip install requests --break-system-packages
@@ -48,6 +50,13 @@ Usage:
     python seed_config.py --action migrate --url https://xxxx.supabase.co \
                           --sb-token SUPABASE_PAT
 
+    # Clear (delete) attendance rows — by age and/or incomplete-only, optional
+    # backup; prompts for the scope when run interactively:
+    python seed_config.py --url https://xxxx.supabase.co --key SERVICE_ROLE_KEY \
+                          --action clear-attendance
+    python seed_config.py --url https://xxxx.supabase.co --key SERVICE_ROLE_KEY \
+                          --action clear-attendance --clear-days 30 --clear-backup
+
     # Redeploy the worker — no Supabase credentials needed:
     python seed_config.py --action deploy
     python seed_config.py --action deploy --wrangler-args --env production
@@ -65,6 +74,7 @@ import re
 import shlex
 import subprocess
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 import requests
 
@@ -79,6 +89,12 @@ ATT_COLS = [
     "id", "employeeId", "name", "designation", "date",
     "checkIn", "checkInTimestamp", "checkOut", "checkOutTimestamp",
     "location", "lat", "lng", "deviceId", "deviceToken", "created_at",
+]
+# Columns for the clear-attendance CSV backup (same as ATT_COLS minus deviceToken).
+BACKUP_COLS = [
+    "id", "employeeId", "name", "designation", "date",
+    "checkIn", "checkInTimestamp", "checkOut", "checkOutTimestamp",
+    "location", "lat", "lng", "deviceId", "created_at",
 ]
 BATCH = 500  # Supabase insert limit per request
 
@@ -354,7 +370,14 @@ def run_migration(args):
     if not ref:
         ref = derive_ref(url)
     if not ref:
-        ref = ask("Supabase project ref (the xxxx in https://xxxx.supabase.co)")
+        # Same prompt as every other action: ask for the full project URL and
+        # derive the ref. Only fall back to the raw ref if derive cannot work.
+        if not url:
+            url = ask("Supabase project URL (https://xxxx.supabase.co)")
+            args.url = url
+        ref = derive_ref(url)
+        if not ref:
+            ref = ask("Supabase project ref (auto-derive failed — the xxxx in https://xxxx.supabase.co)")
     if not ref:
         sys.exit("A Supabase project ref is required (--ref).")
 
@@ -364,7 +387,8 @@ def run_migration(args):
     if not token:
         sys.exit("A Supabase Personal Access Token is required (--sb-token).")
 
-    print(f"\n  Project ref : {ref}")
+    print(f"\n  Project URL : {url}")
+    print(f"  Project ref : {ref}")
     print("  Migrations  :")
     for f in files:
         print(f"    • {f.name}")
@@ -428,6 +452,114 @@ def deploy_worker(args):
         print(f"❌  wrangler exited with code {r.returncode}.")
 
 
+# ── CLEAR ATTENDANCE ────────────────────────────────────────────────────────────
+def clear_filters(days, incomplete_only):
+    """Turn the delete scope into PostgREST filters plus a human description
+    ("ALL" when nothing is filtered)."""
+    filters = {}
+    desc_parts = []
+    if days is not None:
+        cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        filters["date"] = f"lt.{cutoff}"
+        desc_parts.append(f"older than {days} day(s) (before {cutoff})")
+    if incomplete_only:
+        filters["checkOut"] = "is.null"
+        desc_parts.append("incomplete (checkOut is null)")
+    desc = ", ".join(desc_parts) if desc_parts else "ALL"
+    return filters, desc
+
+
+def clear_count(base, headers, filters):
+    """Count rows matching `filters`. Content-Range looks like "0-0/123" —
+    the part after "/" is the total."""
+    params = {"select": "id", **filters} if filters else {"select": "id"}
+    r = req("GET", f"{base}/rest/v1/attendance",
+            headers={**headers, "Prefer": "count=exact", "Range": "0-0"},
+            params=params)
+    if r is None or not r.ok:
+        sys.exit(f"❌  Could not read attendance table: {r.status_code} {r.text}" if r else "❌  Could not read the attendance table.")
+    try:
+        return int(r.headers.get("Content-Range", "*/0").split("/")[-1])
+    except ValueError:
+        return 0
+
+
+def clear_attendance(base, headers, *, backup=None, days=None, incomplete_only=False, yes=False):
+    """Delete matching rows from the attendance table.
+
+    Filters: `days` (older than N days), `incomplete_only` (checkOut is null).
+    `backup` — "auto" or a filename — writes a CSV before deleting.
+    `yes` skips the type-DELETE confirmation. Returns the number deleted."""
+    filters, desc = clear_filters(days, incomplete_only)
+
+    total = clear_count(base, headers, filters)
+    print(f"Matching rows: {total}  ({desc})")
+    if total == 0:
+        print("Nothing to delete. Done.")
+        return 0
+
+    backup_path = None
+    if backup:
+        backup_path = (
+            f"attendance_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            if backup == "auto" else backup
+        )
+        print(f"Backing up {total} row(s) to {backup_path} …")
+        rb = req("GET", f"{base}/rest/v1/attendance", headers=headers,
+                 params={"select": "*", "order": "checkInTimestamp.asc.nullslast", **filters})
+        if rb is None or not rb.ok:
+            sys.exit(f"❌  Backup read failed: {rb.status_code} {rb.text}" if rb else "❌  Backup read failed.")
+        rows = rb.json()
+        with open(backup_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=BACKUP_COLS, extrasaction="ignore")
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+        print(f"✅  Backup written: {backup_path} ({len(rows)} rows)")
+
+    if not yes:
+        print(f"\n⚠️  This will PERMANENTLY DELETE {total} matching attendance record(s) ({desc}). This cannot be undone.")
+        answer = input('Type "DELETE" to confirm: ').strip()
+        if answer != "DELETE":
+            sys.exit("Aborted — no rows were deleted.")
+
+    # PostgREST refuses an unfiltered DELETE, so fall back to id=not.is.null
+    # when no specific filters are given. return=representation lets us count
+    # exactly how many were removed.
+    params_delete = filters if filters else {"id": "not.is.null"}
+    rd = req("DELETE", f"{base}/rest/v1/attendance",
+             headers={**headers, "Prefer": "return=representation"},
+             params=params_delete)
+    if rd is None or not rd.ok:
+        sys.exit(f"❌  Delete failed: {rd.status_code} {rd.text}" if rd else "❌  Delete failed.")
+
+    try:
+        deleted = len(rd.json())
+    except ValueError:
+        deleted = total
+    print(f"✅  Deleted {deleted} matching attendance row(s).")
+    return deleted
+
+
+def clear_attendance_menu(base, headers, args):
+    """Interactive wrapper around clear_attendance(): collects the delete scope
+    (age / incomplete-only) and backup choice, then deletes rows."""
+    days = args.clear_days
+    if days is None:
+        ans = ask("Delete only records older than N days? (empty = all ages)").strip()
+        days = int(ans) if ans.isdigit() else None
+    if args.clear_incomplete:
+        incomplete_only = True
+    else:
+        incomplete_only = ask("Delete only incomplete records (checkOut empty)? [n]", "n").strip().lower() in ("y", "yes")
+    if args.clear_backup is not None:
+        backup = args.clear_backup
+    else:
+        backup = "auto" if ask("Write a CSV backup before deleting? [n]", "n").strip().lower() in ("y", "yes") else None
+    clear_attendance(base, headers, backup=backup, days=days,
+                     incomplete_only=incomplete_only, yes=CONFIRM_ALL)
+
+
 # ── MENU ────────────────────────────────────────────────────────────────────────
 def ensure_creds(fn):
     """Wrap a sync action so it lazily grabs credentials if the menu never did
@@ -444,10 +576,11 @@ ACTIONS = {
     "pull-config":     ("Pull config      (server → local JSON)", ensure_creds(lambda b, h, a: pull_config(b, h, a.config))),
     "push-attendance": ("Push attendance  (local CSV  → server)", ensure_creds(lambda b, h, a: push_attendance(b, h, a.attendance))),
     "pull-attendance": ("Pull attendance  (server → local CSV )", ensure_creds(lambda b, h, a: pull_attendance(b, h, a.attendance))),
+    "clear-attendance": ("Clear attendance (delete rows)   ", ensure_creds(clear_attendance_menu)),
     "migrate":         ("Run migrations   (Supabase SQL)",       lambda b, h, a: run_migration(a)),
     "deploy":          ("Deploy worker    (wrangler)",           lambda b, h, a: deploy_worker(a)),
 }
-MENU_ORDER = ["push-config", "pull-config", "push-attendance", "pull-attendance", "migrate", "deploy"]
+MENU_ORDER = ["push-config", "pull-config", "push-attendance", "pull-attendance", "clear-attendance", "migrate", "deploy"]
 
 
 def run_menu(base, headers, args):
@@ -478,6 +611,12 @@ def main():
     ap.add_argument("--ref",        default=None, help="Supabase project ref (default: auto-derived from --url)")
     ap.add_argument("--sb-token",   default=None, help="Supabase Personal Access Token (or SUPABASE_ACCESS_TOKEN env)")
     ap.add_argument("--migration",  default=None, help="Run only this migration file (default: all in seed/migrations/)")
+    ap.add_argument("--clear-days", type=int, default=None,
+                    help="Clear attendance: only delete rows older than N days")
+    ap.add_argument("--clear-incomplete", action="store_true",
+                    help="Clear attendance: only delete incomplete records (checkOut empty)")
+    ap.add_argument("--clear-backup", nargs="?", const="auto", default=None,
+                    help="Clear attendance: write a CSV backup first (path, or --clear-backup alone to auto-name)")
     ap.add_argument("--wrangler-args", default=None, help="Extra args for wrangler deploy, e.g. '--env production'")
     ap.add_argument("--yes",        action="store_true", help="Skip all confirmation prompts")
     ap.add_argument("--action", choices=list(ACTIONS), default=None,
