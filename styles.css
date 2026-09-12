@@ -41,6 +41,29 @@ body { font-family: 'Hind Siliguri', sans-serif; background: var(--bg); color: v
 .header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
 .header p  { font-size: 12px; opacity: 0.8; margin-top: 2px; }
 .header-right { position: absolute; right: 16px; top: 20px; display: flex; gap: 8px; }
+
+/* Site logo — the duty-gate mark: a door clipped to a ledger docket */
+.site-logo { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 8px; text-align: left; letter-spacing: 0; }
+.logo-badge {
+  flex: 0 0 auto;
+  width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 25px; line-height: 1;
+  background-color: var(--post-paper);
+  background-image:
+    radial-gradient(circle at 7px 6px, rgba(31,94,140,.3) 1.7px, transparent 2.2px),
+    radial-gradient(circle at calc(100% - 7px) 6px, rgba(31,94,140,.3) 1.7px, transparent 2.2px);
+  border-top: 3px solid var(--post-blue);
+  border-radius: 5px 5px 13px 13px;
+  box-shadow: 0 3px 8px rgba(0,0,0,.32), 0 1px 3px rgba(0,0,0,.4);
+}
+.logo-text { display: flex; flex-direction: column; gap: 1px; }
+.logo-eyebrow {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 8.5px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase;
+  color: var(--post-sky);
+}
+.logo-title { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; line-height: 1.1; }
 .icon-btn { background: rgba(255,255,255,0.2); border: none; border-radius: 10px; color: white; width: 38px; height: 38px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .icon-btn.admin-active { background: rgba(255,255,255,0.9); color: #F5821F; }
 .card-wrapper { padding: 0 16px; margin-top: -40px; position: relative; z-index: 10; }
@@ -565,6 +588,7 @@ select:focus { outline: none; border-color: var(--primary); }
   --post-slate: #66727E;   /* secondary counter text */
   --post-blue:  #1F5E8C;   /* the officer's ink-blue accent */
   --post-blue-d:#17496D;
+  --post-sky:   #7FB5DA;   /* pale blue for dark counter surfaces */
   --post-green: #157A4C;
   --post-red:   #B4232E;
   --post-amber: #B07A0A;
