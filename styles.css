@@ -32,7 +32,7 @@ body { font-family: 'Hind Siliguri', sans-serif; background: var(--bg); color: v
    and controls; Hind Siliguri (the body face) for everything read-along. */
 :where(.header h1, h2, h3, .dt-label, .dt-val, .field-label, .section-title,
        .l-eyebrow, .loc-title, .gate-eyebrow, .gate-title, .gate-name,
-       .warn-title, .pin-title, .modal-title, .admin-banner-title, .est-name,
+       .warn-title, .pin-title, .modal-title, .est-name,
        .est-count, .empty-state, .record-name, .record-desig, .scan-name,
        .scan-state, .emp-list-name, .combo-desig, .name-lock-hint, .gate-stamp) {
   font-family: 'Baloo Da 2', 'Hind Siliguri', sans-serif;
@@ -45,7 +45,6 @@ body { font-family: 'Hind Siliguri', sans-serif; background: var(--bg); color: v
 .icon-btn.admin-active { background: rgba(255,255,255,0.9); color: #F5821F; }
 .card-wrapper { padding: 0 16px; margin-top: -40px; position: relative; z-index: 10; }
 .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 24px; margin-bottom: 16px; }
-.card.admin-card { border: 2px solid var(--admin); }
 .datetime-bar { display: flex; justify-content: space-between; align-items: center; background: var(--surface2); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 20px; }
 .dt-block { text-align: center; }
 .dt-label { font-size: 11px; color: var(--text3); font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
@@ -358,11 +357,6 @@ select:focus { outline: none; border-color: var(--primary); }
 }
 
 /* ── ADMIN MODE STYLES ────────────────────────────────────────────────────── */
-.admin-banner { background: linear-gradient(135deg, #F5821F 0%, #D96A08 100%); color: white; border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
-.admin-banner-icon { font-size: 28px; }
-.admin-banner-title { font-size: 16px; font-weight: 800; }
-.admin-banner-sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
-
 /* QR scanner */
 .qr-scanner-wrap { position: relative; border-radius: var(--radius-sm); overflow: hidden; background: #000; margin-bottom: 16px; }
 #qrVideo { width: 100%; display: block; max-height: 280px; object-fit: cover; }
@@ -499,9 +493,6 @@ select:focus { outline: none; border-color: var(--primary); }
   .qr-print-overlay, .id-card-overlay { display: none !important; }
 }
 
-/* Admin exit btn */
-.btn-exit-admin { width: 100%; padding: 14px; border: 2px solid var(--danger); border-radius: var(--radius-sm); font-family: 'Baloo Da 2', 'Hind Siliguri', sans-serif; font-size: 15px; font-weight: 800; cursor: pointer; background: white; color: var(--danger); margin-top: 8px; }
-
 /* ── Device ID line (employee location card) ─────────────────────────────── */
 .dev-box { margin-bottom: 20px; }
 .dev-line { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; background: var(--surface2); border: 1.5px dashed var(--border); font-size: 12.5px; }
@@ -558,3 +549,174 @@ select:focus { outline: none; border-color: var(--primary); }
 .btn-save.small { padding: 15px; font-size: 15px; margin-top: 0; }
 .btn-form-cancel { flex: 1; padding: 15px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: white; font-family: 'Baloo Da 2', 'Hind Siliguri', sans-serif; font-size: 15px; font-weight: 800; color: var(--text2); cursor: pointer; }
 .btn-form-cancel:hover { background: var(--admin-light); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ── ADMIN PASS BOARD ( পাসবোর্ড ) ───────────────────────────────────────────
+   The admin console is the duty-gate counter: a clipboard of clipped passes,
+   one docket per function. Each docket gets a stapled ink rail on top, a dashed
+   fold under its header, and a punched stub corner at the bottom. The palette
+   leaves the orange employee gate behind and moves to ledger paper + ink-blue
+   — the register of the officer's counter, not the staff entrance.
+   ──────────────────────────────────────────────────────────────────────────── */
+:root {
+  --post-ink:   #2C3742;   /* ledger ink — rails, titles */
+  --post-paper: #FFFCF4;   /* docket paper */
+  --post-line:  #E3DAC7;   /* reinforced hairlines */
+  --post-slate: #66727E;   /* secondary counter text */
+  --post-blue:  #1F5E8C;   /* the officer's ink-blue accent */
+  --post-blue-d:#17496D;
+  --post-green: #157A4C;
+  --post-red:   #B4232E;
+  --post-amber: #B07A0A;
+}
+
+/* Counter rail — the clipboard grip over the whole board */
+.counter-rail {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--post-ink);
+  color: #F3ECDD;
+  border-radius: 14px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.25), 0 6px 16px rgba(44,55,66,.14);
+}
+.counter-rail-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.counter-mark { font-size: 19px; flex-shrink: 0; }
+.counter-title { font-family: 'Baloo Da 2', 'Hind Siliguri', sans-serif; font-size: 16px; font-weight: 800; line-height: 1.1; }
+.counter-sub { font-size: 10px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: rgba(243,236,221,.6); margin-top: 3px; }
+.counter-exit { flex-shrink: 0; padding: 9px 13px; border: 1.5px solid rgba(243,236,221,.4); border-radius: 9px; background: transparent; color: #F3ECDD; font-family: 'Baloo Da 2', 'Hind Siliguri', sans-serif; font-size: 12px; font-weight: 800; cursor: pointer; transition: background .18s, border-color .18s; }
+.counter-exit:hover { background: rgba(255,255,255,.12); border-color: rgba(243,236,221,.7); }
+.counter-exit:active { transform: scale(.97); }
+
+/* Board grid */
+.pass-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.pass-hero { grid-column: 1 / -1; }
+
+/* Pass docket */
+.pass {
+  position: relative;
+  padding: 0 16px 30px;
+  background-color: var(--post-paper);
+  /* two staples punched through the ink rail */
+  background-image:
+    radial-gradient(circle at 22px -1px, #8B939C 0 2.2px, #3A4551 2.2px 3.6px, rgba(255,255,255,0) 4px),
+    radial-gradient(circle at calc(100% - 22px) -1px, #8B939C 0 2.2px, #3A4551 2.2px 3.6px, rgba(255,255,255,0) 4px);
+  background-repeat: no-repeat;
+  border: 1.5px solid var(--post-line);
+  border-top: 2.5px solid var(--post-ink);
+  border-radius: 4px 4px 14px 14px;
+  box-shadow: 0 1px 0 rgba(44,55,66,.04), 0 8px 20px rgba(44,55,66,.07);
+}
+
+/* punched stub corner — one small detail that makes the docket a pass */
+.pass::after {
+  content: '';
+  position: absolute; right: 14px; bottom: 12px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--bg);
+  border: 1.5px solid var(--post-line);
+}
+
+.pass-head {
+  display: flex; align-items: flex-start; gap: 10px;
+  width: 100%; padding: 14px 0 12px;
+  text-align: left;
+  border: none; border-bottom: 1.5px dashed var(--post-line);
+}
+button.pass-head { background: transparent; font: inherit; color: inherit; cursor: pointer; }
+.pass-head:hover .pass-caret { color: var(--post-blue); }
+.pass-head-main { display: block; flex: 1; min-width: 0; }
+.pass-tag {
+  display: inline-block;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--post-blue);
+  background: rgba(31,94,140,.08);
+  border: 1px solid rgba(31,94,140,.22);
+  border-radius: 5px;
+  padding: 2px 7px 1px;
+}
+.pass-title { display: block; font-family: 'Baloo Da 2', 'Hind Siliguri', sans-serif; font-size: 16.5px; font-weight: 800; color: var(--post-ink); line-height: 1.15; margin-top: 6px; }
+.pass-note { font-size: 11.5px; font-weight: 700; color: var(--post-slate); margin-top: 4px; white-space: nowrap; }
+.pass-meta { font-size: 11px; font-weight: 800; color: var(--post-blue); margin-top: 5px; white-space: nowrap; }
+.pass-caret { margin: 4px 0 0 4px; font-size: 12px; color: var(--post-slate); transition: transform .2s ease, color .18s; }
+.pass.open .pass-caret { transform: rotate(180deg); }
+.pass-body { padding-top: 14px; }
+.pass-copy { font-size: 13px; font-weight: 600; color: var(--post-slate); line-height: 1.55; margin-bottom: 12px; }
+
+/* Entering admin — passes clip onto the board, one orchestrated moment */
+#adminView.admin-in .pass { animation: passClip .34s cubic-bezier(.2,.8,.2,1) backwards; }
+#adminView.admin-in .pass:nth-child(2) { animation-delay: .05s; }
+#adminView.admin-in .pass:nth-child(3) { animation-delay: .1s; }
+#adminView.admin-in .pass:nth-child(4) { animation-delay: .15s; }
+#adminView.admin-in .pass:nth-child(5) { animation-delay: .2s; }
+@keyframes passClip { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* Ink-blue accents inside the pass board (the employee gate stays orange) */
+.pass .loc-pill:hover { border-color: var(--post-blue); color: var(--post-blue); }
+.pass .loc-pill.selected { border-color: var(--post-blue); background: var(--post-blue); color: #fff; }
+.pass .btn-camera-toggle { border-color: var(--post-blue); background: rgba(31,94,140,.06); color: var(--post-blue); }
+.pass .btn-camera-toggle:hover,
+.pass .btn-camera-toggle.active { background: var(--post-blue); border-color: var(--post-blue); color: #fff; }
+.pass .btn-rescan { border-color: var(--post-blue); color: var(--post-blue); }
+.pass .btn-rescan:hover { background: rgba(31,94,140,.08); }
+.pass .scan-avatar { background: rgba(31,94,140,.1); color: var(--post-blue); }
+.pass .scan-desig { color: var(--post-blue); }
+.pass .mgmt-tab:hover { border-color: var(--post-blue); color: var(--post-blue); }
+.pass .mgmt-tab.active { background: var(--post-blue); border-color: var(--post-blue); color: #fff; }
+.pass .btn-mgmt-add { border-color: var(--post-blue); background: rgba(31,94,140,.06); color: var(--post-blue); }
+.pass .btn-mgmt-add:hover { background: var(--post-blue); color: #fff; }
+.pass .mgmt-btn.edit:hover { border-color: var(--post-blue); color: var(--post-blue); }
+.pass .btn-dl:hover { border-color: var(--post-blue); color: var(--post-blue); background: rgba(31,94,140,.06); }
+.pass .btn-dl .dl-label { color: var(--post-slate); }
+
+.report-month {
+  width: 100%; padding: 11px 12px; margin-bottom: 14px;
+  border: 1.5px solid var(--post-line); border-radius: 9px;
+  background: #fff;
+  font-family: 'Hind Siliguri', sans-serif; font-size: 14px; font-weight: 700; color: var(--post-ink);
+  appearance: auto;
+}
+.report-month:focus { outline: none; border-color: var(--post-blue); }
+
+.btn-pass-action {
+  width: 100%; padding: 15px;
+  border: none; border-radius: 10px;
+  background: var(--post-blue); color: #fff;
+  font-family: 'Baloo Da 2', 'Hind Siliguri', sans-serif; font-size: 15px; font-weight: 800;
+  cursor: pointer; transition: background .18s, transform .12s;
+}
+.btn-pass-action:hover { background: var(--post-blue-d); }
+.btn-pass-action:active { transform: scale(.98); }
+
+/* Narrow screens: compact launcher dockets that expand to full width */
+@media (max-width: 679px) {
+  .pass:not(.open) .pass-body { display: none; }
+  .pass:not(.open) .pass-note { display: none; }
+  .pass.open { grid-column: 1 / -1; }
+  .pass.open .pass-body { animation: passUnfold .22s ease; }
+  @keyframes passUnfold { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .pass:not(.open) .pass-title { font-size: 14px; }
+  .pass:not(.open) .pass-meta { font-size: 10px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+}
+@media (max-width: 400px) {
+  .pass-board { grid-template-columns: 1fr; }
+  .pass.open { grid-column: auto; }
+}
+
+/* Wide screens: static dashboard — every pass open, no accordion chrome */
+@media (min-width: 680px) {
+  button.pass-head { cursor: default; }
+  .pass-caret { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #adminView.admin-in .pass { animation: none; }
+  .pass.open .pass-body { animation: none; }
+  .pass-caret { transition: none; }
+}

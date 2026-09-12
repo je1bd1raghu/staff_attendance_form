@@ -807,6 +807,7 @@ function setRecFilter(status) {
 
 function renderAdminRecords() {
   renderRecordList(document.getElementById('adminRecordsList'), todayRecs);
+  updatePostMeta();
 }
 
 function recordHTML(r) {
@@ -1181,7 +1182,6 @@ function revokeAdminSession() {
   _adminTimer = null;
   // Close any open privileged sheets first
   document.getElementById('qrPrintOverlay').classList.remove('open');
-  document.getElementById('downloadOverlay').classList.remove('open');
   // Exit full admin mode if active
   if (isAdmin) {
     isAdmin = false;
@@ -1195,23 +1195,69 @@ function teardownAdminUi() {
   stopScanner();
   scannedEmpId     = null;
   scannedPrintedAt = null;
-  document.getElementById('adminView').style.display    = 'none';
+  const view = document.getElementById('adminView');
+  view.classList.remove('admin-in');
+  view.style.display = 'none';
   document.getElementById('employeeView').style.display = 'block';
   document.getElementById('adminBtn').classList.remove('admin-active');
 }
 
 function enterAdmin() {
   isAdmin = true;
+  const view = document.getElementById('adminView');
+  view.style.display = 'block';
+  view.classList.add('admin-in');
   document.getElementById('employeeView').style.display = 'none';
-  document.getElementById('adminView').style.display    = 'block';
   document.getElementById('adminBtn').classList.add('admin-active');
   renderAdminRecords();
   populateAdminLocs();
   renderMgmtEmpList();
   renderMgmtLocList();
+  updatePostMeta();
+  populateSummaryMonths();
   startAdminWatch();
   resetCameraToggleBtn();
   startAdminTimer();
+}
+
+// ── PASS BOARD (admin function grid) ──────────────────────────────────────────
+// The admin view is a board of clipped passes. On narrow screens each pass is a
+// compact launcher that expands to full width when opened; on wide screens the
+// whole board is a static dashboard. togglePost()/openPost() drive the accordion.
+function togglePost(head) {
+  const post = head.closest('.pass');
+  if (!post || post.classList.contains('pass-hero')) return;
+  const open = post.classList.toggle('open');
+  if (open) {
+    document.querySelectorAll('#passBoard .pass.open').forEach(p => { if (p !== post) p.classList.remove('open'); });
+    if (matchMedia('(max-width: 679px)').matches) {
+      post.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+}
+
+function openPost(id) {
+  const post = document.getElementById(id);
+  if (!post) return;
+  if (!post.classList.contains('open')) {
+    document.querySelectorAll('#passBoard .pass.open').forEach(p => { if (p !== post) p.classList.remove('open'); });
+    post.classList.add('open');
+  }
+  post.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Live counts in each pass tag — the legder shows "inside / total", the roster
+// shows roster sizes, and the card pass shows how many passes can be printed.
+function updatePostMeta() {
+  const ledger = document.getElementById('ledgerMeta');
+  if (ledger) {
+    const inside = todayRecs.filter(r => r.checkIn && !r.checkOut).length;
+    ledger.textContent = 'ভিতরে ' + bd(inside) + ' · ' + bd(todayRecs.length) + ' জন';
+  }
+  const roster = document.getElementById('rosterMeta');
+  if (roster) roster.textContent = '👥 ' + bd(employees.length) + ' · 📍 ' + bd(locations.length);
+  const cards = document.getElementById('cardMeta');
+  if (cards) cards.textContent = bd(employees.length) + ' জন';
 }
 
 function exitAdmin() {
@@ -1394,6 +1440,7 @@ function refreshRosterUi() {
   renderMgmtLocList();
   renderRecords();
   renderAdminRecords();
+  updatePostMeta();
 }
 
 async function saveDataForm() {
@@ -1819,19 +1866,13 @@ async function adminDoOut() {
 }
 
 // ── DOWNLOAD SHEET ────────────────────────────────────────────────────────────
+// Reports now live inside the admin pass board — this brings the board forward
+// and reveals the report pass, ensuring its month list is loaded first.
 async function openDownloadSheet() {
   if (!isAdmin && !verifiedPin) { openPinOverlay('download'); return; }
+  if (!isAdmin) enterAdmin();
   await populateSummaryMonths();
-  document.getElementById('downloadOverlay').classList.add('open');
-}
-
-function closeDownloadSheet() {
-  document.getElementById('downloadOverlay').classList.remove('open');
-  revokeAdminSession();
-}
-
-function handleDownloadOverlayClick(e) {
-  if (e.target === document.getElementById('downloadOverlay')) closeDownloadSheet();
+  openPost('postReport');
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2056,7 +2097,9 @@ async function openQrPrint() {
 function closeQrPrint() {
   document.getElementById('qrPrintOverlay').classList.remove('open');
   _selectedEmpIds.clear();
-  revokeAdminSession();
+  // Opened from inside admin mode → keep the session; otherwise it was a one-off
+  // privileged sheet and must revoke the temporary PIN session.
+  if (!isAdmin) revokeAdminSession();
 }
 
 function filterQrGrid() {
