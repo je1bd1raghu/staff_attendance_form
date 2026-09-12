@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>স্টাফ হাজিরা · ডিউটি গেট</title>
-<link rel="icon" href="data:,">
+<title>স্টাফ এটেন্ডেন্স · ডিউটি গেট</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚪</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Baloo+Da+2:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
@@ -237,16 +237,11 @@
 <!-- HEADER -->
 <div class="header" id="mainHeader">
   <p id="headerDate">লোড হচ্ছে…</p>
-  <h1 class="site-logo">
-    <span class="logo-badge" aria-hidden="true">🚪</span>
-    <span class="logo-text">
-      <span class="logo-eyebrow">ডিউটি গেট</span>
-      <span class="logo-title">স্টাফ হাজিরা</span>
-    </span>
-  </h1>
+  <h1>স্টাফ হাজিরা</h1>
   <div class="header-right">
     <button class="icon-btn" id="adminBtn" title="অ্যাডমিন মোড" onclick="handleAdminBtn()">🛡️</button>
   </div>
+</div>
 </div>
 
 <!-- MAIN (employee mode) -->
@@ -314,7 +309,7 @@
 
   <!-- TODAY'S RECORDS -->
   <div class="card">
-    <div class="section-title">আজকের হাজিরা</div>
+    <div class="section-title">আজকের এটেন্ডেন্স</div>
 
     <!-- FILTER BAR -->
     <div class="rec-filter" id="recFilter" style="display:none">
@@ -362,7 +357,7 @@
           <span class="pass-tag">স্টেশন</span>
           <h2 class="pass-title">স্ক্যান স্টেশন</h2>
         </div>
-        <div class="pass-note">পাস স্ক্যান করে হাজিরা দিন</div>
+        <div class="pass-note">পাস স্ক্যান করে এটেন্ডেন্স দিন</div>
       </div>
       <div class="pass-body">
         <div class="field-label">এই কাউন্টারের স্থান</div>
@@ -404,19 +399,19 @@
       </div>
     </section>
 
-    <!-- PASS · আজকের হাজিরা -->
+    <!-- PASS · আজকের এটেন্ডেন্স -->
     <section class="pass open" id="postLedger">
       <button class="pass-head" type="button" onclick="togglePost(this)">
         <span class="pass-head-main">
           <span class="pass-tag">লেজার</span>
-          <span class="pass-title">আজকের হাজিরা</span>
+          <span class="pass-title">আজকের এটেন্ডেন্স</span>
         </span>
         <span class="pass-meta" id="ledgerMeta">০ জন</span>
         <span class="pass-caret">▾</span>
       </button>
       <div class="pass-body">
         <div id="adminRecordsList">
-          <div class="empty-state"><div class="e-icon">🗒️</div>এখনও কেউ হাজিরা দেননি — একটি পাস স্ক্যান করুন</div>
+          <div class="empty-state"><div class="e-icon">🗒️</div>এখনও কেউ এটেন্ডেন্স দেননি — একটি পাস স্ক্যান করুন</div>
         </div>
       </div>
     </section>
@@ -456,7 +451,7 @@
         <span class="pass-caret">▾</span>
       </button>
       <div class="pass-body">
-        <p class="pass-copy">সম্পূর্ণ কাঁচা হাজিরা, কিংবা প্রতি কর্মচারীর উপস্থিত দিন ও ডিউটি ঘণ্টাসহ মাসিক সারাংশ নামান।</p>
+        <p class="pass-copy">সম্পূর্ণ কাঁচা এটেন্ডেন্স, কিংবা প্রতি কর্মচারীর উপস্থিত দিন ও ডিউটি ঘণ্টাসহ মাসিক সারাংশ নামান।</p>
         <div class="field-label" style="margin-bottom:6px;">সারাংশের মাস</div>
         <select id="summaryMonthSel" class="report-month">
           <option value="">সব মাস</option>
