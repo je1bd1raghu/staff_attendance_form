@@ -528,7 +528,7 @@ select:focus { outline: none; border-color: var(--primary); }
 .mgmt-sub { font-size: 11.5px; font-weight: 600; color: var(--text3); margin-top: 1px; font-family: monospace; }
 .mgmt-sub .mgmt-human { font-family: 'Hind Siliguri', sans-serif; }
 .mgmt-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.mgmt-btn { padding: 7px 12px; border: 1.5px solid var(--border); border-radius: 8px; background: white; font-family: 'Baloo Da 2', 'Hind Siliguri', sans-serif; font-size: 11.5px; font-weight: 800; cursor: pointer; transition: all .15s; color: var(--text2); }
+.mgmt-btn { width: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1.5px solid var(--border); border-radius: 8px; background: white; font-size: 14px; line-height: 1; cursor: pointer; transition: all .15s; color: var(--text2); }
 .mgmt-btn.edit:hover { border-color: var(--admin); color: var(--admin); }
 .mgmt-btn.del { color: var(--danger); border-color: rgba(220,38,38,.35); }
 .mgmt-btn.del:hover { background: var(--danger); border-color: var(--danger); color: white; }

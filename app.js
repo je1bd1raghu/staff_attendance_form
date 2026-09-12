@@ -228,7 +228,7 @@ async function initApp() {
   const ok = await fetchConfig();
   if (!ok) { hideLoading(); return; }
 
-  setLoadText("আজকের হাজিরার তথ্য লোড হচ্ছে…");
+  setLoadText("আজকের এটেন্ডেন্সের তথ্য লোড হচ্ছে…");
   setProgress(75);
   await fetchTodayRecords();
 
@@ -1082,7 +1082,7 @@ function openPinOverlay(purpose = 'admin') {
   } else if (purpose === 'download') {
     document.getElementById('pinIcon').textContent  = '📥';
     document.getElementById('pinTitle').textContent = 'রেকর্ড ডাউনলোড';
-    document.getElementById('pinSub').textContent   = 'হাজিরার তথ্য ডাউনলোড করতে অ্যাডমিন PIN দিন';
+    document.getElementById('pinSub').textContent   = 'এটেন্ডেন্সের তথ্য ডাউনলোড করতে অ্যাডমিন PIN দিন';
   } else {
     document.getElementById('pinIcon').textContent  = '🔐';
     document.getElementById('pinTitle').textContent = 'অ্যাডমিন অ্যাক্সেস';
@@ -1305,8 +1305,8 @@ function renderMgmtEmpList() {
                '<div class="mgmt-sub">' + esc(e.id) + est + '</div>' +
              '</div>' +
              '<div class="mgmt-actions">' +
-               '<button class="mgmt-btn edit" onclick="openEmpForm(\'' + esc(e.id) + '\')">সম্পাদনা</button>' +
-               '<button class="mgmt-btn del" onclick="askDelEmp(\'' + esc(e.id) + '\')">মুছুন</button>' +
+               '<button class="mgmt-btn edit" title="সম্পাদনা" aria-label="সম্পাদনা" onclick="openEmpForm(\'' + esc(e.id) + '\')">✏️</button>' +
+               '<button class="mgmt-btn del" title="মুছুন" aria-label="মুছুন" onclick="askDelEmp(\'' + esc(e.id) + '\')">🗑️</button>' +
              '</div>' +
            '</div>';
   }).join('');
@@ -1331,8 +1331,8 @@ function renderMgmtLocList() {
                  '<span class="mgmt-human">' + bd(l.lat) + ', ' + bd(l.lng) + ' · সীমা ' + bd(tol) + ' মিটার</span></div>' +
              '</div>' +
              '<div class="mgmt-actions">' +
-               '<button class="mgmt-btn edit" onclick="openLocForm(\'' + esc(l.id) + '\')">সম্পাদনা</button>' +
-               '<button class="mgmt-btn del" onclick="askDelLoc(\'' + esc(l.id) + '\')">মুছুন</button>' +
+               '<button class="mgmt-btn edit" title="সম্পাদনা" aria-label="সম্পাদনা" onclick="openLocForm(\'' + esc(l.id) + '\')">✏️</button>' +
+               '<button class="mgmt-btn del" title="মুছুন" aria-label="মুছুন" onclick="askDelLoc(\'' + esc(l.id) + '\')">🗑️</button>' +
              '</div>' +
            '</div>';
   }).join('');
@@ -1464,7 +1464,7 @@ async function saveDataForm() {
           const go = await askConfirm({
             icon: '🪪', title: 'QR কার্ড বদলাতে হবে',
             sub: 'নাম বা পদবি বদলে গেলে এই কর্মচারীর QR আইডি বদলে যায়।',
-            text: 'পুরনো মুদ্রিত কার্ডগুলো কাজ করবে না — ভবিষ্যতে হাজিরা দিতে নতুন কার্ড ছাপাতে হবে। চালিয়ে যাবেন?',
+            text: 'পুরনো মুদ্রিত কার্ডগুলো কাজ করবে না — ভবিষ্যতে এটেন্ডেন্স দিতে নতুন কার্ড ছাপাতে হবে। চালিয়ে যাবেন?',
             okText: 'হ্যাঁ, সংরক্ষণ করুন',
           });
           if (!go) return;
@@ -1508,7 +1508,7 @@ function askDelEmp(id) {
   askConfirm({
     icon: '🗑️', title: 'কর্মচারী মুছবেন?',
     sub: emp.name + ' (' + emp.id + ')',
-    text: 'তার পুরনো হাজিরার রেকর্ড থাকবে, তবে নাম টিকে আর এই অ্যাপে থাকবে না। QR কার্ড আর স্ক্যান হবে না।',
+    text: 'তার পুরনো এটেন্ডেন্স রেকর্ড থাকবে, তবে নাম টিকে আর এই অ্যাপে থাকবে না। QR কার্ড আর স্ক্যান হবে না।',
     okText: 'মুছুন',
   }).then(async (go) => {
     if (!go) return;
@@ -1625,7 +1625,7 @@ function checkAdminProximity() {
   } else {
     adminLocVerified = false;
     setAdminLoc('failed', '🚫', 'আপনি ' + loc.name + ' এর বাইরে আছেন',
-      bd(dist) + ' মিটার দূরে — এখানে হাজিরা দিতে ' + bd(tol) + ' মিটারের মধ্যে থাকতে হবে');
+      bd(dist) + ' মিটার দূরে — এখানে এটেন্ডেন্স দিতে ' + bd(tol) + ' মিটারের মধ্যে থাকতে হবে');
   }
   updateAdminActionBtns();
 }
@@ -1910,10 +1910,10 @@ async function downloadRawCsv() {
       const d = new Date();
       const ts = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
       triggerDownload('attendance_records_' + ts + '.csv', content);
-      showToast('সফলভাবে ' + bd(records.length) + ' টি হাজিরা রেকর্ড ডাউনলোড হয়েছে', 'success');
+      showToast('সফলভাবে ' + bd(records.length) + ' টি এটেন্ডেন্স রেকর্ড ডাউনলোড হয়েছে', 'success');
     });
   } catch(e) {
-    showToast('হাজিরা রেকর্ড ডাউনলোড ব্যর্থ: ' + e.message, 'error');
+    showToast('এটেন্ডেন্স রেকর্ড ডাউনলোড ব্যর্থ: ' + e.message, 'error');
   }
 }
 
