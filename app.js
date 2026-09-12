@@ -248,9 +248,8 @@ function hideLoading() {
 // ── CLOCK ─────────────────────────────────────────────────────────────────────
 function updateClock() {
   const now = new Date();
-  document.getElementById('dispDate').textContent = bd(now.getDate()) + ' ' + MONTH_ABBR_BN[now.getMonth()] + ' ' + bd(now.getFullYear());
-  document.getElementById('dispTime').textContent = bd(pad(now.getHours())) + ':' + bd(pad(now.getMinutes())) + ':' + bd(pad(now.getSeconds()));
-  document.getElementById('dispDay').textContent  = DAY_ABBR_BN[now.getDay()];
+  document.getElementById('headerClock').textContent =
+    bd(pad(now.getHours())) + ':' + bd(pad(now.getMinutes())) + ':' + bd(pad(now.getSeconds()));
   document.getElementById('headerDateText').textContent = DAY_FULL_BN[now.getDay()] + ', ' + bd(now.getDate()) + ' ' + MONTH_ABBR_BN[now.getMonth()] + ', ' + bd(now.getFullYear());
 }
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
